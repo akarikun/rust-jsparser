@@ -13,12 +13,13 @@ pub enum TokenType {
     LParen,    // (
     RParen,    // )
     Semicolon, //;
-    Dot,       //,
+    Dot,       //.
+    Comma,     //,
 
-    Let,     //let
-    If,      //if
-    Else,    //else
-    Return,  //return
+    Let,    //let
+    If,     //if
+    Else,   //else
+    Return, //return
 }
 
 #[derive(Debug)]
@@ -50,6 +51,7 @@ impl std::fmt::Display for Token {
             TokenType::RParen => write!(f, ")"),
             TokenType::Semicolon => write!(f, ";"),
             TokenType::Dot => write!(f, "."),
+            TokenType::Comma => write!(f, ","),
             TokenType::Let => write!(f, "*let"),
             TokenType::If => write!(f, "*if"),
             TokenType::Else => write!(f, "*else"),
