@@ -2,32 +2,39 @@
 pub enum Expr {
     Identifier(String),
     Number(i64),
-    Prefix(Prefix, Box<Expr>),
-    Infix(Box<Expr>, Infix, Box<Expr>),
-    Call(Box<Expr>, Vec<Expr>),
+    // Prefix(Prefix, Box<Expr>),
+    // Infix(Box<Expr>, Infix, Box<Expr>),
+    // Call(Box<Expr>, Vec<Expr>),
+
+    Expression(Box<Expr>),
+    Binary(Box<Expr>),
+    Variable(Box<Expr>),
 }
 
 impl Expr {
-    pub fn eval(&self) -> Option<i64> {
+    pub fn calc(&self) -> Option<i64> {
         match self {
-            Expr::Number(val) => Some(*val),
-            Expr::Infix(left, op, right) => {
-                let left_val = left.eval()?;
-                let right_val = right.eval()?;
-                match op {
-                    Infix::Plus => Some(left_val + right_val),
-                    Infix::Minus => Some(left_val - right_val),
-                    Infix::Multiply => Some(left_val * right_val),
-                    Infix::Divide => Some(left_val / right_val),
-                }
-            }
-            Expr::Prefix(op, expr) => {
-                let val = expr.eval()?;
-                match op {
-                    Prefix::Negate => Some(-val),
-                }
-            }
-            _ => None,
+            // Expr::Number(val) => Some(*val),
+            // Expr::Infix(left, op, right) => {
+            //     let left_val = left.calc()?;
+            //     let right_val = right.calc()?;
+            //     match op {
+            //         Infix::Plus => Some(left_val + right_val),
+            //         Infix::Minus => Some(left_val - right_val),
+            //         Infix::Multiply => Some(left_val * right_val),
+            //         Infix::Divide => Some(left_val / right_val),
+            //     }
+            // }
+            // Expr::Prefix(op, expr) => {
+            //     let val = expr.calc()?;
+            //     match op {
+            //         Prefix::Negate => Some(-val),
+            //     }
+            // }
+            Expr::Variable(expr)=>{
+                Some(0)
+            },
+            _ => todo!(),
         }
     }
 }
@@ -47,7 +54,9 @@ pub enum Infix {
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Let(String, Expr),
+    Literal(String),
+    Identifier(String),
+    Variable(String, String, Expr),
     Expression(Expr),
 }
 
@@ -57,14 +66,21 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn eval(&self) -> Option<i64> {
-        let mut result = None;
+    pub fn eval(&self) {
+        // let mut result = None;
         for stmt in &self.statements {
-            result = match stmt {
-                Stmt::Let(_, expr) => expr.eval(),
-                Stmt::Expression(expr) => expr.eval(),
+            //result = 
+            match stmt {
+                Stmt::Variable(kind,name, expr) =>{
+                    println!("{} {} {:?}",kind,name, stmt);
+                    let t = expr.calc();
+                },
+                Stmt::Expression(expr) => {
+                    expr.calc();
+                },
+                _ => todo!()
             }
         }
-        result
+        // println!("{:?}",result);
     }
 }

@@ -1,4 +1,6 @@
-use super::token::{Token, TokenType};
+use core::num;
+
+use super::token::{Token, TokenType,TokenPunctuator,TokenKeyword};
 
 pub struct Lexer {
     input: String,
@@ -44,18 +46,67 @@ impl Lexer {
         false
     }
 
+    fn peek_char(&self) -> Option<char> {
+        self.input.chars().nth(self.read_position)
+    }
+
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
-        let token = match self.ch {
-            Some('=') => Token::new(TokenType::Assign, self.line, self.column),
-            Some('+') => Token::new(TokenType::Plus, self.line, self.column),
-            Some('-') => Token::new(TokenType::Minus, self.line, self.column),
-            Some('*') => Token::new(TokenType::Asterisk, self.line, self.column),
-            Some('/') => Token::new(TokenType::Slash, self.line, self.column),
-            Some('(') => Token::new(TokenType::LParen, self.line, self.column),
-            Some(')') => Token::new(TokenType::RParen, self.line, self.column),
-            Some(';') => Token::new(TokenType::Semicolon, self.line, self.column),
-            Some('.') => Token::new(TokenType::Dot, self.line, self.column),
+        let token = match &self.ch {
+            Some('=') =>{
+                Token::new(TokenType::Punctuator(TokenPunctuator::Assign), self.line, self.column)
+            },
+            Some('+') =>Token::new(TokenType::Punctuator(TokenPunctuator::Plus), self.line, self.column),
+            Some('-') => {
+                return Token::new(TokenType::Punctuator(TokenPunctuator::Minus), self.line, self.column);
+            },
+            Some('*') => { //  */
+                let pc = self.peek_char();
+                if pc == Some('/'){
+                    todo!()
+                }
+                else {
+                    Token::new(TokenType::Punctuator(TokenPunctuator::Asterisk), self.line, self.column)
+                }
+            },
+            Some('/') => {//注释或者是除号
+                let pc = self.peek_char();
+                if pc == Some('/') {// //
+                    while let Some(ch) = self.ch {
+                        if ch == '\n' {
+                            self.read_char();
+                            break;
+                        }
+                        self.read_char();
+                    }
+                    return self.next_token();
+                } else if pc == Some('*') {// /*
+                    self.read_char();
+                    self.read_char();
+                    while let Some(ch) = self.ch {   
+                        let pc = self.peek_char();
+                        if ch == '*' && pc == Some('/') {
+                            self.read_char();
+                            self.read_char();
+                            break;
+                        }
+                        self.read_char();
+                    } 
+                    return self.next_token();
+                } else {//除号
+                    Token::new(TokenType::Punctuator(TokenPunctuator::Slash), self.line, self.column)
+                }
+            },
+            Some('(') => {
+                return Token::new(TokenType::Punctuator(TokenPunctuator::LParen), self.line, self.column);
+            },
+            Some(')') => {
+                return Token::new(TokenType::Punctuator(TokenPunctuator::RParen), self.line, self.column);
+            },
+            Some(';') => Token::new(TokenType::Punctuator(TokenPunctuator::Semicolon), self.line, self.column),
+            Some('.') => {
+                return Token::new(TokenType::Punctuator(TokenPunctuator::Dot), self.line, self.column);
+            },
             Some(ch) if ch.is_digit(10) => {
                 let num = self.read_number();
                 return Token::new(TokenType::Number(num), self.line, self.column);
@@ -63,16 +114,21 @@ impl Lexer {
             Some(ch) if ch.is_alphabetic() => {
                 let ident = self.read_identifier();
                 match ident.as_str() {
-                    "let" => Token::new(TokenType::Let, self.line, self.column),
-                    "if" => Token::new(TokenType::If, self.line, self.column),
-                    "else" => Token::new(TokenType::Else, self.line, self.column),
-                    "return" => Token::new(TokenType::Return, self.line, self.column),
-                    _ => Token::new(TokenType::Ident(ident), self.line, self.column),
+                    "let" => {
+                        return Token::new(TokenType::Keyword(TokenKeyword::Let), self.line, self.column);
+                    },
+                    "if" => Token::new(TokenType::Keyword(TokenKeyword::If), self.line, self.column),
+                    "else" => Token::new(TokenType::Keyword(TokenKeyword::Else), self.line, self.column),
+                    "return" => Token::new(TokenType::Keyword(TokenKeyword::Return), self.line, self.column),
+                    _ => {
+                        return Token::new(TokenType::Ident(ident), self.line, self.column);
+                    },
                 }
             }
             None => Token::new(TokenType::EOF, self.line, self.column),
             _ => Token::new(TokenType::Illegal, self.line, self.column),
         };
+        //这里会在最后再次读取/过滤下个字符,如果不需要该操作则需要提前return
         self.read_char();
         token
     }
@@ -96,29 +152,38 @@ impl Lexer {
                 break;
             }
         }
-        self.input[position..self.position].to_string()
+        let number = self.input[position..self.position].to_string();
+        // println!("{:?}",number);
+        return number;
     }
 
     fn read_identifier(&mut self) -> String {
         let position = self.position;
+
         while let Some(ch) = self.ch {
-            if ch.is_alphabetic() {
+            if ch == '$' || ch.is_alphabetic() || ch.is_digit(10){
                 self.read_char();
-            } else {
+            }
+            else {
                 break;
             }
         }
-        self.input[position..self.position].to_string()
+        let ident = self.input[position..self.position].to_string();
+        // println!("{}",ident);
+        ident
     }
-    
+
     pub fn print(&mut self) {
+        println!("/*--------print--------*/");
+        let mut p = Lexer::new(String::from(self.input.clone()));
         loop {
-            let tok = self.next_token();
+            let tok = p.next_token();
             if tok.typ == TokenType::EOF {
                 break;
             }
-            print!("{}", tok);
-            // println!("{:?}", tok);
+            // print!("{}", tok);
+            println!("{} {:?}",tok, tok);
         }
+        println!("\n/*-------- end --------/*");
     }
 }
