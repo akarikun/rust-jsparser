@@ -1,6 +1,6 @@
-use core::num;
+use std::ops::BitAnd;
 
-use super::token::{Token, TokenType,TokenPunctuator,TokenKeyword};
+use super::token::{Token, TokenKeyword, TokenPunctuator, TokenType};
 
 pub struct Lexer {
     input: String,
@@ -53,23 +53,108 @@ impl Lexer {
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
         let token = match &self.ch {
-            Some('=') =>{
-                Token::new(TokenType::Punctuator(TokenPunctuator::Assign), self.line, self.column)
-            },
-            Some('+') =>Token::new(TokenType::Punctuator(TokenPunctuator::Plus), self.line, self.column),
-            Some('-') => Token::new(TokenType::Punctuator(TokenPunctuator::Minus), self.line, self.column),
-            Some('*') => { //  */
+            Some('=') => {
                 let pc = self.peek_char();
-                if pc == Some('/'){
+                if pc == Some('=') {
+                    //==
+                    self.read_char();
+                    let pc2 = self.peek_char();
+                    if pc2 == Some('=') {
+                        //===
+                        self.read_char();
+                        self.read_char();
+                        return Token::new(
+                            TokenType::Punctuator(TokenPunctuator::Congruent),
+                            self.line,
+                            self.column,
+                        );
+                    } else {
+                        self.read_char();
+                        return Token::new(
+                            TokenType::Punctuator(TokenPunctuator::Equal),
+                            self.line,
+                            self.column,
+                        );
+                    }
+                } else {
+                    self.read_char();
+                    return Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Assign),
+                        self.line,
+                        self.column,
+                    );
+                }
+            }
+            Some('+') => {
+                let pc = self.peek_char();
+                if pc == Some('=') {
+                    //+=
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::PlusEqual),
+                        self.line,
+                        self.column,
+                    )
+                } else if pc == Some('+') {
+                    //++
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::INC),
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Plus),
+                        self.line,
+                        self.column,
+                    )
+                }
+            }
+            Some('-') => {
+                let pc = self.peek_char();
+                if pc == Some('=') {
+                    //-=
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::MinusEqual),
+                        self.line,
+                        self.column,
+                    )
+                } else if pc == Some('-') {
+                    //--
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::DEC),
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Minus),
+                        self.line,
+                        self.column,
+                    )
+                }
+            }
+            Some('*') => {
+                //  */
+                let pc = self.peek_char();
+                if pc == Some('/') {
                     todo!()
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Asterisk),
+                        self.line,
+                        self.column,
+                    )
                 }
-                else {
-                    Token::new(TokenType::Punctuator(TokenPunctuator::Asterisk), self.line, self.column)
-                }
-            },
-            Some('/') => {//注释或者是除号
+            }
+            Some('/') => {
+                //注释或者是除号
                 let pc = self.peek_char();
-                if pc == Some('/') {// //
+                if pc == Some('/') {
+                    // //
                     while let Some(ch) = self.ch {
                         if ch == '\n' {
                             self.read_char();
@@ -78,10 +163,11 @@ impl Lexer {
                         self.read_char();
                     }
                     return self.next_token();
-                } else if pc == Some('*') {// /*
+                } else if pc == Some('*') {
+                    // /*
                     self.read_char();
                     self.read_char();
-                    while let Some(ch) = self.ch {   
+                    while let Some(ch) = self.ch {
                         let pc = self.peek_char();
                         if ch == '*' && pc == Some('/') {
                             self.read_char();
@@ -89,16 +175,111 @@ impl Lexer {
                             break;
                         }
                         self.read_char();
-                    } 
+                    }
                     return self.next_token();
-                } else {//除号
-                    Token::new(TokenType::Punctuator(TokenPunctuator::Slash), self.line, self.column)
+                } else {
+                    //除号
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Slash),
+                        self.line,
+                        self.column,
+                    )
                 }
-            },
-            Some('(') => Token::new(TokenType::Punctuator(TokenPunctuator::LParen), self.line, self.column),
-            Some(')') => Token::new(TokenType::Punctuator(TokenPunctuator::RParen), self.line, self.column),
-            Some(';') => Token::new(TokenType::Punctuator(TokenPunctuator::Semicolon), self.line, self.column),
-            Some('.') => Token::new(TokenType::Punctuator(TokenPunctuator::Dot), self.line, self.column),
+            }
+            Some('(') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::LParen),
+                self.line,
+                self.column,
+            ),
+            Some(')') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::RParen),
+                self.line,
+                self.column,
+            ),
+            Some('{') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::LCParen),
+                self.line,
+                self.column,
+            ),
+            Some('}') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::RCParen),
+                self.line,
+                self.column,
+            ),
+            Some('[') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::LSParen),
+                self.line,
+                self.column,
+            ),
+            Some(']') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::RSParen),
+                self.line,
+                self.column,
+            ),
+            Some(';') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::Semicolon),
+                self.line,
+                self.column,
+            ),
+            Some('.') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::Dot),
+                self.line,
+                self.column,
+            ),
+            Some(',') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::Comma),
+                self.line,
+                self.column,
+            ),
+            Some('^') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::BitXor),
+                self.line,
+                self.column,
+            ),
+            Some('~') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::BitNot),
+                self.line,
+                self.column,
+            ),
+            Some('&') => {
+                let pc = self.peek_char();
+                if pc == Some('&') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::And),
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::BitAnd),
+                        self.line,
+                        self.column,
+                    )
+                }
+            }
+            Some('|') => {
+                let pc = self.peek_char();
+                if pc == Some('|') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Or),
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::BitOr),
+                        self.line,
+                        self.column,
+                    )
+                }
+            }
+            Some('!') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::Not),
+                self.line,
+                self.column,
+            ),
             Some(ch) if ch.is_digit(10) => {
                 let num = self.read_number();
                 return Token::new(TokenType::Number(num), self.line, self.column);
@@ -107,15 +288,41 @@ impl Lexer {
                 let ident = self.read_identifier();
                 match ident.as_str() {
                     "let" => {
-                        return Token::new(TokenType::Keyword(TokenKeyword::Let), self.line, self.column);
-                    },
-                    "if" => Token::new(TokenType::Keyword(TokenKeyword::If), self.line, self.column),
-                    "else" => Token::new(TokenType::Keyword(TokenKeyword::Else), self.line, self.column),
-                    "return" => Token::new(TokenType::Keyword(TokenKeyword::Return), self.line, self.column),
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Let),
+                            self.line,
+                            self.column,
+                        );
+                    }
+                    "if" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::If),
+                            self.line,
+                            self.column,
+                        )
+                    }
+                    "else" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Else),
+                            self.line,
+                            self.column,
+                        )
+                    }
+                    "return" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Return),
+                            self.line,
+                            self.column,
+                        )
+                    }
                     _ => {
                         return Token::new(TokenType::Ident(ident), self.line, self.column);
-                    },
+                    }
                 }
+            }
+            Some('$') => {
+                let ident = self.read_identifier();
+                Token::new(TokenType::Ident(ident), self.line, self.column)
             }
             None => Token::new(TokenType::EOF, self.line, self.column),
             _ => Token::new(TokenType::Illegal, self.line, self.column),
@@ -153,10 +360,9 @@ impl Lexer {
         let position = self.position;
 
         while let Some(ch) = self.ch {
-            if ch == '$' || ch.is_alphabetic() || ch.is_digit(10){
+            if ch == '$' || ch.is_alphabetic() || ch.is_digit(10) {
                 self.read_char();
-            }
-            else {
+            } else {
                 break;
             }
         }
@@ -165,14 +371,34 @@ impl Lexer {
         ident
     }
 
+    // fn read_symbol(&mut self)->String{
+    //     let position = self.position;
+
+    //     while let Some(ch) = self.ch {
+    //         if ch == '$' || ch.is_alphabetic() || ch.is_digit(10) {
+    //             self.read_char();
+    //         } else {
+    //             break;
+    //         }
+    //     }
+    //     let ident = self.input[position..self.position].to_string();
+    //     println!("{}",ident);
+    //     ident
+    // }
+
     pub fn print(&mut self) {
         println!("/*--------print--------*/");
         let mut p = Lexer::new(String::from(self.input.clone()));
+        let mut line = 0;
         loop {
             let tok = p.next_token();
             if tok.typ == TokenType::EOF {
                 break;
             }
+            if line != tok.line {
+                println!("");
+            }
+            line = tok.line;
             print!("{}", tok);
         }
         println!("\n/*-------- end --------/*");

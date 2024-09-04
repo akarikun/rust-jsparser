@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq)]
+use super::token::TokenPunctuator;
+
+#[derive(Debug)]
 pub enum Expr {
     Identifier(String),
     Number(i64),
@@ -7,8 +9,42 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
 
     Binary(Box<Expr>),
-    Expression(Box<Expr>),
+    Expression(Box<Expr>,TokenPunctuator,Expression),
 }
+
+#[derive(Debug,PartialEq)]
+pub enum Expression{
+    Assignment,
+    Update,
+}
+
+#[derive(Debug)]
+pub enum Prefix {
+    Negate, // -expr
+}
+
+#[derive(Debug)]
+pub enum Infix {
+    Plus,
+    Minus,
+    Multiply,
+    Divide,
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    Literal(String),
+    Identifier(String),
+    Variable(String, String, Expr),
+    Expression(Expr),
+    // Update(String,Expr),
+}
+
+#[derive(Debug)]
+pub struct Program {
+    pub statements: Vec<Stmt>,
+}
+
 
 impl Expr {
     pub fn calc(&self) -> Option<i64> {
@@ -30,47 +66,34 @@ impl Expr {
                     Prefix::Negate => Some(-val),
                 }
             }
-            _ => todo!(),
+            _ => {
+                println!("expr calc => {:?}",&self);
+                todo!()
+            },
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Prefix {
-    Negate, // -expr
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Infix {
-    Plus,
-    Minus,
-    Multiply,
-    Divide,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Stmt {
-    Literal(String),
-    Identifier(String),
-    Variable(String, String, Expr),
-    Expression(Expr),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Program {
-    pub statements: Vec<Stmt>,
-}
 
 impl Program {
     pub fn eval(&self) {
         for stmt in &self.statements {
-            // println!("eval stmt => {:?}",stmt);
             match stmt {
                 Stmt::Variable(kind,name, expr) =>{
-                    let r = expr.calc().unwrap();
-                    println!("calc: {} {} = {}",kind,name,r);
+                    println!("calc: {} {} = {}",kind,name,expr.calc().unwrap());
                 },
-                _ => todo!()
+                // Stmt::Expression(expr)=>{
+                //     if let Expr::Expression(ident,tp,ex) = expr {
+                //         if Expression::Update == *ex {
+                //             if TokenPunctuator::INC== *tp {
+                //                 //ident.as_ref()
+                //             }
+                //         }
+                //     }
+                // },
+                _ => {
+                    println!("eval stmt => {:?}",stmt);
+                },
             }
         }
     }

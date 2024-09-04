@@ -10,26 +10,77 @@ pub enum TokenType {
     Keyword(TokenKeyword),
     
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum  TokenPunctuator{
+    ///=
     Assign,    //=
+    ///==
+    Equal,     //==
+    ///===
+    Congruent, //===
+    ///+
     Plus,      //+
+    ///+=
+    PlusEqual, //+=
+    ///++
+    INC,       //++
+    //-
     Minus,     //-
+    ///--
+    DEC,       //--
+    ///-=
+    MinusEqual,//-=
+    //*
     Asterisk,  //*
+    /// /
     Slash,     // /
+    ///(
     LParen,    // (
+    ///)
     RParen,    // )
+    ///{
+    LCParen,//{
+    ///}
+    RCParen,//}
+    ///[
+    LSParen,//[
+    ///]
+    RSParen,//]
+    ///;
     Semicolon, //;
+    ///.
     Dot,       //.
+    ///,
     Comma,     //,
+
+    ///&
+    BitAnd,    //&
+    ///|
+    BitOr,     //|
+    ///^
+    BitXor,    //^
+    ///~
+    BitNot,    //~
+    ///&&
+    And,       // &&
+    ///||
+    Or,        // || 
+    ///!
+    Not,       // !
 }
 
 impl TokenPunctuator {
     fn format(&self)->String{
         match &self{
             TokenPunctuator::Assign => String::from("="),
+            TokenPunctuator::Equal => String::from("=="),
+            TokenPunctuator::Congruent => String::from("==="),
             TokenPunctuator::Plus => String::from("+"),
+            TokenPunctuator::PlusEqual => String::from("+="),
+            TokenPunctuator::INC => String::from("++"),
             TokenPunctuator::Minus => String::from("-"),
+            TokenPunctuator::DEC => String::from("--"),
+            TokenPunctuator::MinusEqual => String::from("-="),
             TokenPunctuator::Asterisk => String::from("*"),
             TokenPunctuator::Slash => String::from("/"),
             TokenPunctuator::LParen => String::from("("),
@@ -37,26 +88,26 @@ impl TokenPunctuator {
             TokenPunctuator::Semicolon => String::from(";"),
             TokenPunctuator::Dot => String::from("."),
             TokenPunctuator::Comma => String::from(","),
+            TokenPunctuator::BitAnd => String::from("&"),
+            TokenPunctuator::BitOr =>  String::from("|"),
+            TokenPunctuator::BitXor =>  String::from("^"),
+            TokenPunctuator::BitNot =>  String::from("~"),
+            TokenPunctuator::And =>  String::from("&&"),
+            TokenPunctuator::Or =>  String::from("||"),
+            TokenPunctuator::Not =>  String::from("!"),
+            TokenPunctuator::LCParen => String::from("{"),
+            TokenPunctuator::RCParen => String::from("}"),
+            TokenPunctuator::LSParen => String::from("["),
+            TokenPunctuator::RSParen => String::from("]"),
         }
     }
 }
 
-// impl std::fmt::Display for TokenPunctuator {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match &self{
-//             TokenPunctuator::Assign => write!(f, "="),
-//             TokenPunctuator::Plus => write!(f, "+"),
-//             TokenPunctuator::Minus => write!(f, "-"),
-//             TokenPunctuator::Asterisk => write!(f, "*"),
-//             TokenPunctuator::Slash => write!(f, "/"),
-//             TokenPunctuator::LParen => write!(f, "("),
-//             TokenPunctuator::RParen => write!(f, ")"),
-//             TokenPunctuator::Semicolon => write!(f, ";"),
-//             TokenPunctuator::Dot => write!(f, "."),
-//             TokenPunctuator::Comma => write!(f, ","),
-//         }
-//     }
-// }
+impl std::fmt::Display for TokenPunctuator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}",self.format())
+    }
+}
 #[derive(Debug, PartialEq)]
 pub enum  TokenKeyword {
     Let,    //let
@@ -103,8 +154,7 @@ impl std::fmt::Display for Token {
             TokenType::Ident(t) => write!(f, "<\x1b[31m{}\x1b[39m> ", t),
             TokenType::Number(t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
             TokenType::Punctuator(t) =>write!(f, "<\x1b[36m{}\x1b[39m> ",t.format()),
-            TokenType::Keyword(t) =>write!(f, "<\x1b[33m{}\x1b[39m> ",t),
-            _ => todo!("std::fmt::Display"),
+            TokenType::Keyword(t) =>write!(f, "<key:\x1b[33m{}\x1b[39m> ",t),
         }
     }
 }

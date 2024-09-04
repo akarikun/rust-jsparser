@@ -1,3 +1,5 @@
+use crate::jsparser::expr::Expression;
+
 use super::{
     expr::{Expr, Infix, Prefix, Program, Stmt},
     lexer::Lexer,
@@ -22,6 +24,10 @@ impl Parser {
         parser
     }
 
+    fn log(&self) { println!("{:?},{:?}", &self.current_token.typ, &self.peek_token.typ);}
+    
+    fn err(&self,str:&str)->String { format!("{},line:{},column:{}",str,self.current_token.line,self.current_token.column) } 
+
     fn next_token(&mut self) {
         self.current_token = std::mem::replace(&mut self.peek_token, self.lexer.next_token());
     }
@@ -31,7 +37,7 @@ impl Parser {
         let mut statements = Vec::new();
 
         while self.current_token.typ != TokenType::EOF {
-            println!("parse_program {:?}", self.current_token.typ);
+            println!("--|parse_program typ:{:?}", self.current_token.typ);
             if let Some(stmt) = self.parse_statement() {
                 statements.push(stmt);
             }
@@ -41,8 +47,22 @@ impl Parser {
         Program { statements }
     }
 
+    fn checked_next_token(&mut self, typ:TokenPunctuator,to_next:bool)->bool{
+        match &self.peek_token.typ {
+            TokenType::Punctuator(t)=>{
+                if typ == *t {
+                    if to_next {
+                        self.next_token();
+                    }
+                    return true;
+                }
+                return false;
+            }
+            _=> return false,
+        }
+    }
     fn parse_statement(&mut self) -> Option<Stmt> {
-        println!("parse_statement {:?}", self.current_token.typ);
+        println!("----|parse_statement typ:{:?}", self.current_token.typ);
         match &self.current_token.typ {
             TokenType::EOF => None,
             TokenType::Keyword(t) => {
@@ -62,19 +82,15 @@ impl Parser {
                         }
                         self.next_token(); // skip '='
                         let expr = self.parse_expression(Precedence::Lowest)?;
-                        if self.peek_token.typ == TokenType::Punctuator(TokenPunctuator::Semicolon){
-                            self.next_token(); // skip ';'
-                        }
-                        println!("expr {:?}",expr);
+                        self.checked_next_token(TokenPunctuator::Semicolon,true); // skip ';'
+                        // println!("expr {:?}",expr);
                         Some(Stmt::Variable("let".to_string(), name, expr))
                     }
                     _ => todo!(),
                 }
             }
             TokenType::Punctuator(t) => match &t {
-
                 TokenPunctuator::RParen => panic!("{}",self.err("多余')'")),
-
                 // TokenPunctuator::Assign => todo!(),
                 // TokenPunctuator::Plus => todo!(),
                 // TokenPunctuator::Minus => todo!(),
@@ -84,21 +100,40 @@ impl Parser {
                 // TokenPunctuator::Semicolon => todo!(),
                 // TokenPunctuator::Dot => todo!(),
                 // TokenPunctuator::Comma => todo!(),
-                _=>todo!()
+                _=>{
+                    println!("{:?}",t);
+                    todo!()
+                }
             },
             TokenType::Number(_) => {
                 let expr = self.parse_expression(Precedence::Lowest)?;
                 Some(Stmt::Expression(expr))
             }
             TokenType::Ident(t) => {
+                let ident = t.clone();
                 let expr = self.parse_expression(Precedence::Lowest)?;
+               
+                match &self.peek_token.typ{
+                    TokenType::Punctuator(t2) => {
+                        match &t2 {
+                            TokenPunctuator::INC => {//++
+                                let expr = Expr::Expression(Box::new(Expr::Identifier(ident)),t2.clone(),Expression::Update);
+                                self.next_token();//skip ++
+                                self.checked_next_token(TokenPunctuator::Semicolon,true);//skip ;
+                                return Some(Stmt::Expression(expr));
+                            },
+                            _=>todo!()//return Some(Stmt::Expression(expr));
+                        }
+                    },
+                    // TokenType::Keyword(_) => todo!(),
+                    _=>todo!()
+                }
                 Some(Stmt::Expression(expr))
             }
             _ => todo!(),
         }
     }
-    fn log(&self) { println!("{:?},{:?}", &self.current_token.typ, &self.peek_token.typ);}
-    fn err(&self,str:&str)->String { format!("{},line:{},column:{}",str,self.current_token.line,self.current_token.column) } 
+    
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Expr> {
         let mut left = match &self.current_token.typ {
             TokenType::Ident(ident) => {
