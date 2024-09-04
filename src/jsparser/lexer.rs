@@ -57,9 +57,7 @@ impl Lexer {
                 Token::new(TokenType::Punctuator(TokenPunctuator::Assign), self.line, self.column)
             },
             Some('+') =>Token::new(TokenType::Punctuator(TokenPunctuator::Plus), self.line, self.column),
-            Some('-') => {
-                return Token::new(TokenType::Punctuator(TokenPunctuator::Minus), self.line, self.column);
-            },
+            Some('-') => Token::new(TokenType::Punctuator(TokenPunctuator::Minus), self.line, self.column),
             Some('*') => { //  */
                 let pc = self.peek_char();
                 if pc == Some('/'){
@@ -97,16 +95,10 @@ impl Lexer {
                     Token::new(TokenType::Punctuator(TokenPunctuator::Slash), self.line, self.column)
                 }
             },
-            Some('(') => {
-                return Token::new(TokenType::Punctuator(TokenPunctuator::LParen), self.line, self.column);
-            },
-            Some(')') => {
-                return Token::new(TokenType::Punctuator(TokenPunctuator::RParen), self.line, self.column);
-            },
+            Some('(') => Token::new(TokenType::Punctuator(TokenPunctuator::LParen), self.line, self.column),
+            Some(')') => Token::new(TokenType::Punctuator(TokenPunctuator::RParen), self.line, self.column),
             Some(';') => Token::new(TokenType::Punctuator(TokenPunctuator::Semicolon), self.line, self.column),
-            Some('.') => {
-                return Token::new(TokenType::Punctuator(TokenPunctuator::Dot), self.line, self.column);
-            },
+            Some('.') => Token::new(TokenType::Punctuator(TokenPunctuator::Dot), self.line, self.column),
             Some(ch) if ch.is_digit(10) => {
                 let num = self.read_number();
                 return Token::new(TokenType::Number(num), self.line, self.column);
@@ -181,8 +173,7 @@ impl Lexer {
             if tok.typ == TokenType::EOF {
                 break;
             }
-            // print!("{}", tok);
-            println!("{} {:?}",tok, tok);
+            print!("{}", tok);
         }
         println!("\n/*-------- end --------/*");
     }

@@ -1,7 +1,7 @@
 use super::{
     expr::{Expr, Infix, Prefix, Program, Stmt},
     lexer::Lexer,
-    token::{Token, TokenKeyword, TokenType,TokenPunctuator},
+    token::{Token, TokenKeyword, TokenPunctuator, TokenType},
 };
 
 pub struct Parser {
@@ -27,28 +27,29 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Program {
+        println!("/*-------- parse_program --------/*");
         let mut statements = Vec::new();
 
         while self.current_token.typ != TokenType::EOF {
-            println!("parse_program {:?}",self.current_token.typ);
+            println!("parse_program {:?}", self.current_token.typ);
             if let Some(stmt) = self.parse_statement() {
                 statements.push(stmt);
             }
             self.next_token();
         }
-
+        println!("/*-------- end --------/*");
         Program { statements }
     }
 
     fn parse_statement(&mut self) -> Option<Stmt> {
-        println!("parse_statement {:?}",self.current_token.typ);
+        println!("parse_statement {:?}", self.current_token.typ);
         match &self.current_token.typ {
             TokenType::EOF => None,
-            TokenType::Keyword(t)=> {
+            TokenType::Keyword(t) => {
                 match t {
                     TokenKeyword::Let => {
                         let token = self.next_token(); // skip 'let'
-                        println!("{:?}",token);
+                        println!("{:?}", token);
                         let name = match &self.current_token.typ {
                             TokenType::Ident(name) => name.clone(),
                             _ => return None,
@@ -56,145 +57,122 @@ impl Parser {
 
                         self.next_token(); // skip identifier
 
-                        if self.current_token.typ != TokenType::Punctuator(TokenPunctuator::Assign) {
+                        if self.current_token.typ != TokenType::Punctuator(TokenPunctuator::Assign){
                             return None;
                         }
                         self.next_token(); // skip '='
                         let expr = self.parse_expression(Precedence::Lowest)?;
-                        Some(Stmt::Variable("let".to_string(),name, expr))
-                    },
-                    _ =>todo!()
+                        if self.peek_token.typ == TokenType::Punctuator(TokenPunctuator::Semicolon){
+                            self.next_token(); // skip ';'
+                        }
+                        println!("expr {:?}",expr);
+                        Some(Stmt::Variable("let".to_string(), name, expr))
+                    }
+                    _ => todo!(),
                 }
+            }
+            TokenType::Punctuator(t) => match &t {
+
+                TokenPunctuator::RParen => panic!("{}",self.err("多余')'")),
+
+                // TokenPunctuator::Assign => todo!(),
+                // TokenPunctuator::Plus => todo!(),
+                // TokenPunctuator::Minus => todo!(),
+                // TokenPunctuator::Asterisk => todo!(),
+                // TokenPunctuator::Slash => todo!(),
+                // TokenPunctuator::LParen => todo!(),
+                // TokenPunctuator::Semicolon => todo!(),
+                // TokenPunctuator::Dot => todo!(),
+                // TokenPunctuator::Comma => todo!(),
+                _=>todo!()
             },
-            TokenType::Number(_)=>{
+            TokenType::Number(_) => {
                 let expr = self.parse_expression(Precedence::Lowest)?;
-                println!("TokenType::Number:{:?}",expr);
                 Some(Stmt::Expression(expr))
-            },
+            }
+            TokenType::Ident(t) => {
+                let expr = self.parse_expression(Precedence::Lowest)?;
+                Some(Stmt::Expression(expr))
+            }
             _ => todo!(),
         }
     }
-
-    fn next_token_checked(&mut self,pass:bool) -> bool{
-        let typ = &self.peek_token.typ ; 
-        let r = match typ {
-            TokenType::EOF => {
-                return true;
-            }
-            TokenType::Punctuator(p)=>{
-                match p {
-                    TokenPunctuator::Semicolon => {
-                        true
-                    },
-                    _=> false
-                }
-            }
-            _=>false
-        };
-        if r && pass{
-            self.next_token();
-        }
-        r
-    }
+    fn log(&self) { println!("{:?},{:?}", &self.current_token.typ, &self.peek_token.typ);}
+    fn err(&self,str:&str)->String { format!("{},line:{},column:{}",str,self.current_token.line,self.current_token.column) } 
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Expr> {
-        let ck = &self.current_token.typ;
-        let pk = &self.peek_token.typ;
-        println!("{:?},{:?}",ck,pk);
-
-        match &self.current_token.typ {
-            TokenType::Ident(ident) =>{
-                return Some(Expr::Identifier(ident.clone()));
-            },
+        let mut left = match &self.current_token.typ {
+            TokenType::Ident(ident) => {
+                let ident = ident.clone();
+                Expr::Identifier(ident)
+            }
             TokenType::Number(num) => {
                 let expr = Expr::Number(num.parse().unwrap());
-                self.next_token_checked(true);
-                return Some(expr);
+                expr
+            }
+            TokenType::Punctuator(t) => {
+                match &t {
+                    TokenPunctuator::LParen => {
+                        self.next_token();
+                        let expr = self.parse_expression(Precedence::Lowest)?;
+                        if self.peek_token.typ == TokenType::Punctuator(TokenPunctuator::RParen) {
+                            self.next_token();
+                        }else{
+                            panic!("{}",self.err("缺少')'"));
+                        }
+                        return Some(expr);
+                    },
+                    // TokenPunctuator::RParen => todo!(),
+                    _=>todo!(),
+                }
             },
-            TokenType::Illegal => todo!(),
-            TokenType::EOF => todo!(),
-            TokenType::Punctuator(_) => todo!(),
-            TokenType::Keyword(_) => todo!(),
+            // TokenType::Illegal => todo!(),
+            // TokenType::EOF => todo!(),
+            // TokenType::Keyword(_) => todo!(),
+            _=>todo!(),
+        };
+        while precedence < self.cp_precedence(&self.peek_token.typ) {
+            left = match &self.peek_token.typ {
+                TokenType::Punctuator(t) => match t {
+                    TokenPunctuator::Plus
+                    | TokenPunctuator::Minus
+                    | TokenPunctuator::Asterisk
+                    | TokenPunctuator::Slash => {
+                        self.next_token();
+                        left = self.parse_infix_expression(left);
+                        left
+                    }
+                    TokenPunctuator::LParen => {
+                        self.next_token();
+                        left = self.parse_call_expression(left);
+                        left
+                    }
+                    _ => todo!()
+                },
+                _ => todo!()
+            }
         }
-
-        // let mut left = match &self.current_token.typ {
-        //     //TokenType::Ident(ref ident) => Some(Expr::Identifier(ident.clone())),
-        //     //TokenType::Number(ref num) => Some(Expr::Number(num.parse().unwrap())),
-        //     TokenType::Punctuator(t) => {
-        //         // if *t == TokenPunctuator::Minus {
-        //         //     self.next_token();
-        //         //     let expr = self.parse_expression(Precedence::Prefix)?;
-        //         //     return Some(Expr::Prefix(Prefix::Negate, Box::new(expr)));
-        //         // } else if *t == TokenPunctuator::LParen {
-        //         //         self.next_token();
-        //         //         let expr = self.parse_expression(Precedence::Lowest)?;
-        //         //         if self.current_token.typ !=  TokenType::Punctuator(TokenPunctuator::RParen) {
-        //         //             return None;
-        //         //         }
-        //         //         return Some(expr);
-        //         // } else if *t == TokenPunctuator::Assign {
-        //         //     self.next_token();
-        //         //     let expr = self.parse_expression(Precedence::Lowest)?;
-        //         //     if self.current_token.typ !=  TokenType::Punctuator(TokenPunctuator::RParen) {
-        //         //         return None;
-        //         //     }
-        //         //     return Some(expr);
-        //         // }
-        //         None
-        //     },
-        //     // TokenType::Keyword(t)=>{
-        //     //     match t {
-        //     //         TokenKeyword::Let => {
-        //     //             let expr = self.parse_expression(Precedence::Lowest).unwrap();
-        //     //             Some(Expr::Variable(Box::new(expr)))
-        //     //         },
-        //     //         _=>todo!("parse_expression = Keyword"),
-        //     //     }
-        //     // },
-        //     _ => todo!("parse_expression"),
-        // }?;
-
-        // // while precedence < self.peek_precedence() {
-        // //     left = match &self.peek_token.typ {
-        // //         TokenType::Punctuator(t)=>{
-        // //             match t {
-        // //                 TokenPunctuator::Plus | TokenPunctuator::Minus |TokenPunctuator::Asterisk|TokenPunctuator::Slash=>{
-        // //                     self.next_token();
-        // //                     left = self.parse_infix_expression(left);
-        // //                     left
-        // //                 },
-        // //                 TokenPunctuator::LParen=>{
-        // //                     self.next_token();
-        // //                     left = self.parse_call_expression(left);
-        // //                     left
-        // //                 },
-        // //                 _=> return Some(left),
-        // //             }
-        // //         },
-        // //         _ => return Some(left),
-        // //     };
-        // // }
-        // Some(left)
+       Some(left)
     }
 
-    // fn parse_infix_expression(&mut self, left: Expr) -> Expr {
-    //     let precedence = self.current_precedence();
-    //     let infix_op = match self.current_token.typ {
-    //         TokenType::Punctuator(TokenPunctuator::Plus) => Infix::Plus,
-    //         TokenType::Punctuator(TokenPunctuator::Minus) => Infix::Minus,
-    //         TokenType::Punctuator(TokenPunctuator::Asterisk) => Infix::Multiply,
-    //         TokenType::Punctuator(TokenPunctuator::Slash) => Infix::Divide,
-    //         _ => unreachable!(),
-    //     };
+    fn parse_infix_expression(&mut self, left: Expr) -> Expr {
+        let precedence = self.cp_precedence(&self.current_token.typ);
+        let infix_op = match self.current_token.typ {
+            TokenType::Punctuator(TokenPunctuator::Plus) => Infix::Plus,
+            TokenType::Punctuator(TokenPunctuator::Minus) => Infix::Minus,
+            TokenType::Punctuator(TokenPunctuator::Asterisk) => Infix::Multiply,
+            TokenType::Punctuator(TokenPunctuator::Slash) => Infix::Divide,
+            _ => unreachable!(),
+        };
 
-    //     self.next_token(); // Skip operator
-    //     let right = self.parse_expression(precedence);
-    //     Expr::Infix(Box::new(left), infix_op, Box::new(right.unwrap()))
-    // }
+        self.next_token(); // Skip operator
+        let right = self.parse_expression(precedence);
+        Expr::Infix(Box::new(left), infix_op, Box::new(right.unwrap()))
+    }
 
-    // fn parse_call_expression(&mut self, function: Expr) -> Expr {
-    //     let args = self.parse_call_arguments();
-    //     Expr::Call(Box::new(function), args)
-    // }
+    fn parse_call_expression(&mut self, function: Expr) -> Expr {
+        let args = self.parse_call_arguments();
+        Expr::Call(Box::new(function), args)
+    }
 
     fn parse_call_arguments(&mut self) -> Vec<Expr> {
         let mut args = Vec::new();
@@ -221,19 +199,14 @@ impl Parser {
         args
     }
 
-    fn peek_precedence(&self) -> Precedence {
-        match self.peek_token.typ {
-            TokenType::Punctuator(TokenPunctuator::Plus) | TokenType::Punctuator(TokenPunctuator::Minus) => Precedence::Sum,
-            TokenType::Punctuator(TokenPunctuator::Asterisk) | TokenType::Punctuator(TokenPunctuator::Slash) => Precedence::Product,
-            TokenType::Punctuator(TokenPunctuator::LParen) => Precedence::Call,
-            _ => Precedence::Lowest,
-        }
-    }
-
-    fn current_precedence(&self) -> Precedence {
-        match self.current_token.typ {
-            TokenType::Punctuator(TokenPunctuator::Plus) | TokenType::Punctuator(TokenPunctuator::Minus) => Precedence::Sum,
-            TokenType::Punctuator(TokenPunctuator::Asterisk) | TokenType::Punctuator(TokenPunctuator::Slash) => Precedence::Product,
+    fn cp_precedence(&self, typ: &TokenType) -> Precedence {
+        match typ {
+            TokenType::Punctuator(TokenPunctuator::Plus | TokenPunctuator::Minus) => {
+                Precedence::Sum
+            }
+            TokenType::Punctuator(TokenPunctuator::Asterisk | TokenPunctuator::Slash) => {
+                Precedence::Product
+            }
             TokenType::Punctuator(TokenPunctuator::LParen) => Precedence::Call,
             _ => Precedence::Lowest,
         }

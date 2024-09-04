@@ -85,8 +85,8 @@ impl TokenKeyword {
 #[derive(Debug)]
 pub struct Token {
     pub typ: TokenType,
-    line: usize,
-    column: usize,
+    pub line: usize,
+    pub column: usize,
 }
 
 impl Token {
@@ -100,10 +100,10 @@ impl std::fmt::Display for Token {
         match &self.typ {
             TokenType::Illegal => panic!("Illegal"),
             TokenType::EOF => write!(f, ""),
-            TokenType::Ident(t) => write!(f, "\x1b[31m{}\x1b[39m ", t),
-            TokenType::Number(t) => write!(f, "\x1b[35m{}\x1b[39m ", t),
-            TokenType::Punctuator(t) =>write!(f, "\x1b[36m{}\x1b[39m ",t.format()),
-            TokenType::Keyword(t) =>write!(f, "\x1b[33m{}\x1b[39m ",t),
+            TokenType::Ident(t) => write!(f, "<\x1b[31m{}\x1b[39m> ", t),
+            TokenType::Number(t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
+            TokenType::Punctuator(t) =>write!(f, "<\x1b[36m{}\x1b[39m> ",t.format()),
+            TokenType::Keyword(t) =>write!(f, "<\x1b[33m{}\x1b[39m> ",t),
             _ => todo!("std::fmt::Display"),
         }
     }
