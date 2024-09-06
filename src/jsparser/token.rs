@@ -8,70 +8,69 @@ pub enum TokenType {
     Number(String),
     Punctuator(TokenPunctuator),
     Keyword(TokenKeyword),
-    
 }
 #[derive(Debug, PartialEq, Clone)]
-pub enum  TokenPunctuator{
+pub enum TokenPunctuator {
     ///=
-    Assign,    //=
+    Assign, //=
     ///==
-    Equal,     //==
+    Equal, //==
     ///===
     Congruent, //===
     ///+
-    Plus,      //+
+    Plus, //+
     ///+=
     PlusEqual, //+=
     ///++
-    INC,       //++
+    INC, //++
     //-
-    Minus,     //-
+    Minus, //-
     ///--
-    DEC,       //--
+    DEC, //--
     ///-=
-    MinusEqual,//-=
+    MinusEqual, //-=
     //*
-    Asterisk,  //*
+    Asterisk, //*
     /// /
-    Slash,     // /
+    Slash, // /
     ///(
-    LParen,    // (
+    LParen, // (
     ///)
-    RParen,    // )
+    RParen, // )
     ///{
-    LCParen,//{
+    LCParen, //{
     ///}
-    RCParen,//}
+    RCParen, //}
     ///[
-    LSParen,//[
+    LSParen, //[
     ///]
-    RSParen,//]
+    RSParen, //]
     ///;
     Semicolon, //;
     ///.
-    Dot,       //.
+    Dot, //.
     ///,
-    Comma,     //,
+    Comma, //,
 
     ///&
-    BitAnd,    //&
+    BitAnd, //&
     ///|
-    BitOr,     //|
+    BitOr, //|
     ///^
-    BitXor,    //^
+    BitXor, //^
     ///~
-    BitNot,    //~
+    BitNot, //~
     ///&&
-    And,       // &&
+    And, // &&
     ///||
-    Or,        // || 
+    Or, // ||
     ///!
-    Not,       // !
+    Not, // !
 }
 
 impl TokenPunctuator {
-    fn format(&self)->String{
-        match &self{
+    fn format(&self) -> String {
+        match &self {
             TokenPunctuator::Assign => String::from("="),
             TokenPunctuator::Equal => String::from("=="),
             TokenPunctuator::Congruent => String::from("==="),
@@ -89,12 +88,12 @@ impl TokenPunctuator {
             TokenPunctuator::Dot => String::from("."),
             TokenPunctuator::Comma => String::from(","),
             TokenPunctuator::BitAnd => String::from("&"),
-            TokenPunctuator::BitOr =>  String::from("|"),
-            TokenPunctuator::BitXor =>  String::from("^"),
-            TokenPunctuator::BitNot =>  String::from("~"),
-            TokenPunctuator::And =>  String::from("&&"),
-            TokenPunctuator::Or =>  String::from("||"),
-            TokenPunctuator::Not =>  String::from("!"),
+            TokenPunctuator::BitOr => String::from("|"),
+            TokenPunctuator::BitXor => String::from("^"),
+            TokenPunctuator::BitNot => String::from("~"),
+            TokenPunctuator::And => String::from("&&"),
+            TokenPunctuator::Or => String::from("||"),
+            TokenPunctuator::Not => String::from("!"),
             TokenPunctuator::LCParen => String::from("{"),
             TokenPunctuator::RCParen => String::from("}"),
             TokenPunctuator::LSParen => String::from("["),
@@ -105,11 +104,11 @@ impl TokenPunctuator {
 
 impl std::fmt::Display for TokenPunctuator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}",self.format())
+        write!(f, "{}", self.format())
     }
 }
 #[derive(Debug, PartialEq)]
-pub enum  TokenKeyword {
+pub enum TokenKeyword {
     Let,    //let
     If,     //if
     Else,   //else
@@ -118,12 +117,12 @@ pub enum  TokenKeyword {
 impl std::fmt::Display for TokenKeyword {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let str = self.format();
-        write!(f, "{}",str)
+        write!(f, "{}", str)
     }
 }
 
 impl TokenKeyword {
-    pub fn format(&self)->String{
+    pub fn format(&self) -> String {
         match &self {
             TokenKeyword::Let => String::from("let"),
             TokenKeyword::If => String::from("if"),
@@ -135,14 +134,26 @@ impl TokenKeyword {
 
 #[derive(Debug)]
 pub struct Token {
-    pub typ: TokenType,
-    pub line: usize,
-    pub column: usize,
+    pub typ: TokenType,//token类型
+    pub line: usize,   //行
+    pub column: usize, //列
+    pub index: usize,  //token的序号
 }
 
+static mut TOEKN_INDEX: usize = 0;
 impl Token {
     pub fn new(typ: TokenType, line: usize, column: usize) -> Token {
-        Token { typ, line, column }
+        let mut index = 0;
+        unsafe {
+            TOEKN_INDEX = TOEKN_INDEX + 1;
+            index = TOEKN_INDEX;
+        }
+        Token {
+            typ,
+            line,
+            column,
+            index: index,
+        }
     }
 }
 
@@ -153,8 +164,8 @@ impl std::fmt::Display for Token {
             TokenType::EOF => write!(f, ""),
             TokenType::Ident(t) => write!(f, "<\x1b[31m{}\x1b[39m> ", t),
             TokenType::Number(t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
-            TokenType::Punctuator(t) =>write!(f, "<\x1b[36m{}\x1b[39m> ",t.format()),
-            TokenType::Keyword(t) =>write!(f, "<key:\x1b[33m{}\x1b[39m> ",t),
+            TokenType::Punctuator(t) => write!(f, "<\x1b[36m{}\x1b[39m> ", t.format()),
+            TokenType::Keyword(t) => write!(f, "<key:\x1b[33m{}\x1b[39m> ", t),
         }
     }
 }

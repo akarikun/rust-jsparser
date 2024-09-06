@@ -4,12 +4,15 @@ use super::token::TokenPunctuator;
 pub enum Expr {
     Identifier(String),
     Number(i64),
-    Prefix(Prefix, Box<Expr>),
-    Infix(Box<Expr>, Infix, Box<Expr>),
+    
+    Infix(Box<Expr>, Infix, Box<Expr>),//算术逻辑 a+b  +-*/
     Call(Box<Expr>, Vec<Expr>),
 
-    Binary(Box<Expr>),
+    Binary(Box<Expr>,TokenPunctuator,Box<Expr>),// a==b
     Expression(Box<Expr>,TokenPunctuator,Expression),
+
+    Prefix(Prefix, Box<Expr>),// !a -1
+    Logical(Box<Expr>,Logical,Box<Expr>),// a && b  &&,||,!
 }
 
 #[derive(Debug,PartialEq)]
@@ -21,6 +24,7 @@ pub enum Expression{
 #[derive(Debug)]
 pub enum Prefix {
     Negate, // -expr
+    Not,    // !
 }
 
 #[derive(Debug)]
@@ -32,12 +36,20 @@ pub enum Infix {
 }
 
 #[derive(Debug)]
+pub enum Logical{
+    ///&&
+    And,//&&
+    ///||
+    Or,//||
+    ///!
+    Not,
+}
+
+#[derive(Debug)]
 pub enum Stmt {
-    Literal(String),
-    Identifier(String),
     Variable(String, String, Expr),
     Expression(Expr),
-    // Update(String,Expr),
+    If(),
 }
 
 #[derive(Debug)]
@@ -64,6 +76,7 @@ impl Expr {
                 let val = expr.calc()?;
                 match op {
                     Prefix::Negate => Some(-val),
+                    Prefix::Not => todo!() //Some(-val),
                 }
             }
             _ => {
@@ -77,22 +90,15 @@ impl Expr {
 
 impl Program {
     pub fn eval(&self) {
+        println!("LEN:{}",self.statements.len());
         for stmt in &self.statements {
             match stmt {
                 Stmt::Variable(kind,name, expr) =>{
-                    println!("calc: {} {} = {}",kind,name,expr.calc().unwrap());
+                    crate::println(31,"calc =>",format!("{} {} = {}",kind,name,expr.calc().unwrap()));
                 },
-                // Stmt::Expression(expr)=>{
-                //     if let Expr::Expression(ident,tp,ex) = expr {
-                //         if Expression::Update == *ex {
-                //             if TokenPunctuator::INC== *tp {
-                //                 //ident.as_ref()
-                //             }
-                //         }
-                //     }
-                // },
                 _ => {
-                    println!("eval stmt => {:?}",stmt);
+                    // println!("\x1b[31m eval stmt =>\x1b[39m {:?}",stmt);
+                    crate::println(31,"eval stmt =>",format!("{:?}",stmt));
                 },
             }
         }
