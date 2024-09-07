@@ -12,7 +12,7 @@ pub enum TokenType {
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenPunctuator {
     ///=
-    Assign, //=
+    MOV, //=
     ///==
     Equal, //==
     ///===
@@ -20,7 +20,7 @@ pub enum TokenPunctuator {
     ///+
     Plus, //+
     ///+=
-    PlusEqual, //+=
+    Add, //+=
     ///++
     INC, //++
     //-
@@ -28,11 +28,11 @@ pub enum TokenPunctuator {
     ///--
     DEC, //--
     ///-=
-    MinusEqual, //-=
-    //*
-    Asterisk, //*
+    SUB, //-=
+    ///*
+    Multiply, //*
     /// /
-    Slash, // /
+    Divide, // /
     ///(
     LParen, // (
     ///)
@@ -71,17 +71,17 @@ pub enum TokenPunctuator {
 impl TokenPunctuator {
     fn format(&self) -> String {
         match &self {
-            TokenPunctuator::Assign => String::from("="),
+            TokenPunctuator::MOV => String::from("="),
             TokenPunctuator::Equal => String::from("=="),
             TokenPunctuator::Congruent => String::from("==="),
             TokenPunctuator::Plus => String::from("+"),
-            TokenPunctuator::PlusEqual => String::from("+="),
+            TokenPunctuator::Add => String::from("+="),
             TokenPunctuator::INC => String::from("++"),
             TokenPunctuator::Minus => String::from("-"),
             TokenPunctuator::DEC => String::from("--"),
-            TokenPunctuator::MinusEqual => String::from("-="),
-            TokenPunctuator::Asterisk => String::from("*"),
-            TokenPunctuator::Slash => String::from("/"),
+            TokenPunctuator::SUB => String::from("-="),
+            TokenPunctuator::Multiply => String::from("*"),
+            TokenPunctuator::Divide => String::from("/"),
             TokenPunctuator::LParen => String::from("("),
             TokenPunctuator::RParen => String::from(")"),
             TokenPunctuator::Semicolon => String::from(";"),
@@ -153,6 +153,43 @@ impl Token {
             line,
             column,
             index: index,
+        }
+    }
+    /// 是否是运算符号 + - * /
+    pub fn is_operator(&self)->bool{
+        match &self.typ{
+            TokenType::Punctuator(t) =>{
+                match &t{
+                    TokenPunctuator::Plus|TokenPunctuator::Minus|TokenPunctuator::Multiply|TokenPunctuator::Divide => true,
+                    _=>false
+                }
+            },
+            _=>false
+        }
+    }
+    /// 是否是逻辑符号 && ||
+    pub fn is_logical(&self)->bool{
+        match &self.typ{
+            TokenType::Punctuator(t) =>{
+                match &t{
+                    TokenPunctuator::And|TokenPunctuator::Or => true,
+                    _=>false
+                }
+            },
+            _=>false
+        }
+    }
+    /// 是否是eof 或 ;
+    pub fn is_eof_or_semicolon(&self)->bool{
+        match &self.typ{
+            TokenType::EOF=>true,
+            TokenType::Punctuator(t) =>{
+                match &t{
+                    TokenPunctuator::Semicolon => true,
+                    _=>false
+                }
+            },
+            _=>false
         }
     }
 }

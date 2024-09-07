@@ -79,7 +79,7 @@ impl Lexer {
                 } else {
                     self.read_char();
                     return Token::new(
-                        TokenType::Punctuator(TokenPunctuator::Assign),
+                        TokenType::Punctuator(TokenPunctuator::MOV),
                         self.line,
                         self.column,
                     );
@@ -91,7 +91,7 @@ impl Lexer {
                     //+=
                     self.read_char();
                     Token::new(
-                        TokenType::Punctuator(TokenPunctuator::PlusEqual),
+                        TokenType::Punctuator(TokenPunctuator::Add),
                         self.line,
                         self.column,
                     )
@@ -117,7 +117,7 @@ impl Lexer {
                     //-=
                     self.read_char();
                     Token::new(
-                        TokenType::Punctuator(TokenPunctuator::MinusEqual),
+                        TokenType::Punctuator(TokenPunctuator::SUB),
                         self.line,
                         self.column,
                     )
@@ -144,7 +144,7 @@ impl Lexer {
                     todo!()
                 } else {
                     Token::new(
-                        TokenType::Punctuator(TokenPunctuator::Asterisk),
+                        TokenType::Punctuator(TokenPunctuator::Multiply),
                         self.line,
                         self.column,
                     )
@@ -180,7 +180,7 @@ impl Lexer {
                 } else {
                     //除号
                     Token::new(
-                        TokenType::Punctuator(TokenPunctuator::Slash),
+                        TokenType::Punctuator(TokenPunctuator::Divide),
                         self.line,
                         self.column,
                     )
