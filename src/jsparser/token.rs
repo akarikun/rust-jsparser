@@ -82,7 +82,7 @@ pub enum TokenPunctuator {
 }
 
 impl TokenPunctuator {
-    fn to_raw(&self) -> String {
+    pub fn to_raw(&self) -> String {
         match &self {
             TokenPunctuator::MOV => String::from("="),
             TokenPunctuator::Equal => String::from("=="),
@@ -148,7 +148,7 @@ impl TokenKeyword {
 #[derive(Debug,Clone)]
 pub struct Token {
     raw:String,    //便于调试
-    index: usize,  //token的序号
+    pub index: usize,  //token的序号
 
     pub typ: TokenType,//token类型
     pub line: usize,   //行

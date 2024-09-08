@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Empty, //base
     Identifier(String),
@@ -16,14 +16,14 @@ pub enum Expression {
     Update,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Prefix {
     Negate, // -expr
     Not,    // !
    
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Operator {
     Operator = 0,//预留值
     Plus,
@@ -40,7 +40,7 @@ pub enum Operator {
     INC,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Variable(String, String, Expr),
     Expression(Expr),
