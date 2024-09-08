@@ -45,6 +45,7 @@ pub enum Stmt {
     Variable(String, String, Expr),
     Expression(Expr),
     If(),
+    Unexpected(String),//异常
 }
 
 #[derive(Debug)]
@@ -87,13 +88,13 @@ impl Program {
         println!("LEN:{}", self.statements.len());
         for stmt in &self.statements {
             match stmt {
-                Stmt::Variable(kind, name, expr) => {
-                    crate::println(
-                        31,
-                        "calc =>",
-                        format!("{} {} = {}", kind, name, expr.calc().unwrap()),
-                    );
-                }
+                // Stmt::Variable(kind, name, expr) => {
+                //     crate::println(
+                //         31,
+                //         "calc =>",
+                //         format!("{} {} = {}", kind, name, expr.calc().unwrap()),
+                //     );
+                // }
                 _ => {
                     // println!("\x1b[31m eval stmt =>\x1b[39m {:?}",stmt);
                     crate::println(31, "eval stmt =>", format!("{:?}", stmt));

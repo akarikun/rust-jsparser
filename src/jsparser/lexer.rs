@@ -1,7 +1,10 @@
-use std::ops::BitAnd;
+use std::{cell::RefCell, ops::BitAnd, rc::Rc};
 
 use super::token::{Token, TokenKeyword, TokenPunctuator, TokenType};
 
+pub trait ILexer {
+    fn next_token(&mut self) -> Token;
+}
 pub struct Lexer {
     input: String,
     position: usize,      // 当前字符位置
@@ -11,46 +14,30 @@ pub struct Lexer {
     column: usize,        // 当前列号
 }
 
-impl Lexer {
-    pub fn new(input: String) -> Self {
-        let mut lexer = Lexer {
-            input,
-            position: 0,
-            read_position: 0,
-            ch: None,
-            line: 1,   // 初始行号为1
-            column: 0, // 初始列号为0
-        };
-        lexer.read_char();
-        lexer
-    }
-
-    fn read_char(&mut self) -> bool {
-        if self.read_position >= self.input.len() {
-            self.ch = None;
-        } else {
-            self.ch = self.input.chars().nth(self.read_position);
+pub struct TokenList{
+    // list:Vec<Token>,
+    list: Rc<RefCell<Vec<Token>>>, 
+}
+impl ILexer for TokenList{
+    fn next_token(&mut self) -> Token {
+        // println!("{:?}",self.list);
+        if self.list.borrow_mut().len() == 0 {
+            Token::new(TokenType::EOF, 0, 0)
+        }else{
+            self.list.borrow_mut().remove(0)
         }
-        self.position = self.read_position;
-        self.read_position += 1;
-
-        if let Some(ch) = self.ch {
-            if ch == '\n' {
-                self.line += 1;
-                self.column = 0;
-                return true;
-            } else {
-                self.column += 1;
-            }
+    }
+}
+impl TokenList {
+    pub fn new(list:Rc<RefCell<Vec<Token>>>)->Self{
+        TokenList {
+            list
         }
-        false
     }
+}
 
-    fn peek_char(&self) -> Option<char> {
-        self.input.chars().nth(self.read_position)
-    }
-
-    pub fn next_token(&mut self) -> Token {
+impl ILexer for Lexer {
+    fn next_token(&mut self) -> Token {
         self.skip_whitespace();
         let token = match &self.ch {
             Some('=') => {
@@ -331,6 +318,45 @@ impl Lexer {
         self.read_char();
         token
     }
+}
+impl Lexer {
+    pub fn new(input: String) -> Self {
+        let mut lexer = Lexer {
+            input,
+            position: 0,
+            read_position: 0,
+            ch: None,
+            line: 1,   // 初始行号为1
+            column: 0, // 初始列号为0
+        };
+        lexer.read_char();
+        lexer
+    }
+
+    fn read_char(&mut self) -> bool {
+        if self.read_position >= self.input.len() {
+            self.ch = None;
+        } else {
+            self.ch = self.input.chars().nth(self.read_position);
+        }
+        self.position = self.read_position;
+        self.read_position += 1;
+
+        if let Some(ch) = self.ch {
+            if ch == '\n' {
+                self.line += 1;
+                self.column = 0;
+                return true;
+            } else {
+                self.column += 1;
+            }
+        }
+        false
+    }
+
+    fn peek_char(&self) -> Option<char> {
+        self.input.chars().nth(self.read_position)
+    }
 
     fn skip_whitespace(&mut self) {
         while let Some(ch) = self.ch {
@@ -390,16 +416,18 @@ impl Lexer {
         println!("/*--------print--------*/");
         let mut p = Lexer::new(String::from(self.input.clone()));
         let mut line = 0;
+        let mut index = 1;
         loop {
             let tok = p.next_token();
             if tok.typ == TokenType::EOF {
                 break;
             }
+            line = tok.line;
+            print!("{}:{}",index, tok);
+            index+=1;
             if line != tok.line {
                 println!("");
             }
-            line = tok.line;
-            print!("{}", tok);
         }
         println!("\n/*-------- end --------/*");
     }
