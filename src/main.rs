@@ -6,6 +6,7 @@ fn println(color: i32, label: &str, msg: String) {
 }
 fn main() {
     let input = r#"
+        d(a+b+c);                   //Y
         (a+b);                      //Y
         a+(b*(c-d));                //Y
         //a+(b*(c-d));              //Y

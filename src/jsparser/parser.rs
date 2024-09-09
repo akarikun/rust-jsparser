@@ -1,11 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::jsparser::expr::Expression;
+// use crate::jsparser::expr::Expression;
 
 use super::{
-    expr::{self, Expr, Operator, Prefix, Program, Stmt},
-    lexer::{ILexer, Lexer, TokenList},
-    token::{Token, TokenKeyword, TokenPunctuator, TokenType},
+    expr::{Expr, Operator, Program, Stmt},
+    lexer::{ILexer, TokenList},
+    token::{Token, TokenPunctuator, TokenType},
 };
 
 pub struct Parser<'a> {
@@ -105,12 +105,12 @@ impl<'a> Parser<'a> {
             }
             match &self.current_token.typ {
                 TokenType::Ident(t) => {
-                    if let Some(expr) = self.parse_expression() {
-                        // self.log();
-                        v.push(Some(Stmt::Expression(expr)));
-                        self.next_token();
-                    } else {
-                        panic!()
+                    for i in self.parse_expression(1) {
+                        if let Some(expr) = i {
+                            v.push(Some(Stmt::Expression(expr)));
+                        } else {
+                            panic!()
+                        }
                     }
                 }
                 TokenType::Keyword(t) => {
@@ -134,8 +134,13 @@ impl<'a> Parser<'a> {
                 TokenType::Punctuator(t) => match &t {
                     TokenPunctuator::Semicolon => v.push(None),
                     TokenPunctuator::LParen => {
-                        v.push(Some(Stmt::Expression(self.parse_expression().unwrap())));
-                        break;
+                        for i in self.parse_expression(1) {
+                            if let Some(expr) = i {
+                                v.push(Some(Stmt::Expression(expr)));
+                            } else {
+                                panic!()
+                            }
+                        }
                     }
                     TokenPunctuator::Comma => {
                         self.next_token();
@@ -150,60 +155,77 @@ impl<'a> Parser<'a> {
     }
 
     ///第二层 转换至Expr step: 2->2或2->3
-    fn parse_expression(&mut self) -> Option<Expr> {
-        match &self.current_token.typ {
-            TokenType::Ident(t) => {
-                let ident = t.clone();
-                match &self.peek_token.typ {
-                    TokenType::EOF => {
-                        self.next_token(); //ident
-                        Some(Expr::Identifier(ident))
-                    }
-                    TokenType::Punctuator(t2) => match &t2 {
-                        TokenPunctuator::INC => self.parse_update_slot(ident, Operator::INC, false),
-                        TokenPunctuator::Equal => {
-                            let expr = self.parse_logical_slot(ident);
-                            // println!("{:?}",expr);
-                            expr
-                        }
-                        TokenPunctuator::And | TokenPunctuator::Or => {
-                            self.parse_logical_slot_sub(ident, t2.clone())
-                        }
-                        TokenPunctuator::LParen => self.parse_call_slot(ident),
-                        TokenPunctuator::Comma => {
+    fn parse_expression(&mut self, count: usize) -> Vec<Option<Expr>> {
+        let mut v = Vec::new();
+        loop {
+            if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+                self.next_token();
+            }
+            if self.current_token.is_eof(false) {
+                break;
+            }
+            if count > 0 && v.len() == count {
+                return v;
+            }
+            match &self.current_token.typ {
+                TokenType::Ident(t) => {
+                    let ident = t.clone();
+                    match &self.peek_token.typ {
+                        TokenType::EOF => {
                             self.next_token(); //ident
-                            Some(Expr::Identifier(ident))
+                            v.push(Some(Expr::Identifier(ident)));
                         }
-                        TokenPunctuator::Semicolon => {
-                            self.next_token(); //ident
-                            Some(Expr::Identifier(ident))
-                        }
-                        TokenPunctuator::Plus
-                        | TokenPunctuator::Minus
-                        | TokenPunctuator::Multiply
-                        | TokenPunctuator::Divide => {
-                            let expr = self
-                                .parse_base_expression(
+                        TokenType::Punctuator(t2) => match &t2 {
+                            TokenPunctuator::INC => {
+                                let expr = self.parse_update_slot(ident, Operator::INC, false);
+                                v.push(expr);
+                            }
+                            TokenPunctuator::Equal => {
+                                let expr = self.parse_logical_slot(ident);
+                                v.push(expr);
+                            }
+                            TokenPunctuator::And | TokenPunctuator::Or => {
+                                v.push(self.parse_logical_slot_sub(ident, t2.clone()));
+                            }
+                            TokenPunctuator::LParen => {
+                                v.push(self.parse_call_slot(ident));
+                            }
+                            TokenPunctuator::Comma => {
+                                self.next_token(); //ident
+                                v.push(Some(Expr::Identifier(ident)))
+                            }
+                            TokenPunctuator::Semicolon => {
+                                self.next_token(); //ident
+                                v.push(Some(Expr::Identifier(ident)))
+                            }
+                            TokenPunctuator::Plus
+                            | TokenPunctuator::Minus
+                            | TokenPunctuator::Multiply
+                            | TokenPunctuator::Divide => {
+                                v.push(self.parse_base_expression(
                                     &InfixPrecedence::Lowest,
                                     &LogicalPrecedence::Lowest,
-                                )
-                                .unwrap();
-                            self.skip_next_token_ptor(TokenPunctuator::Semicolon, true); //';'
-                            Some(expr)
-                        }
-                        _ => todo!("{:?}", t2),
-                    },
-                    _ => todo!("{:?}", self.peek_token.typ),
+                                ));
+                                self.skip_next_token_ptor(TokenPunctuator::Semicolon, true);
+                                //';'
+                            }
+                            _ => todo!("{:?}", t2),
+                        },
+                        _ => todo!("{:?}", self.peek_token.typ),
+                    }
                 }
+                TokenType::Punctuator(t) => match &t {
+                    TokenPunctuator::LParen => {
+                        v.push(Some(self.recursion_parse().expect("脚本异常")));
+                    }
+                    _ => todo!("{:?}", &t),
+                },
+                _ => todo!("{:?}", self.current_token.typ),
             }
-            TokenType::Punctuator(t) => match &t {
-                TokenPunctuator::LParen => Some(self.recursion_parse().expect("脚本异常")),
-                _ => todo!("{:?}", &t),
-            },
-            _ => todo!("{:?}", self.current_token.typ),
+            self.next_token();
         }
+        v
     }
-
     //创建新的解析
     fn new_parser(&self, v: Vec<Token>) -> (Option<Expr>, Parser, Vec<Token>) {
         let list: Rc<RefCell<Vec<Token>>> = Rc::new(RefCell::new(v));
@@ -211,7 +233,23 @@ impl<'a> Parser<'a> {
         if list.borrow().len() == 0 {
             return (None, parser, Vec::new());
         }
-        return (parser.parse_expression(), parser, list.borrow().to_vec());
+        let expr = parser.parse_expression(0);
+        if expr.len() != 1 {
+            println!("{}", expr.len());
+            for i in &expr {
+                println!("{:?}", i);
+            }
+            panic!()
+        }
+        if list.borrow().len() > 0 {
+            println!("{:?}", list.borrow());
+            panic!()
+        }
+        return (
+            expr.first().unwrap().clone(),
+            parser,
+            list.borrow().to_vec(),
+        );
     }
     fn recursion_parse(&mut self) -> Option<Expr> {
         let mut list: Vec<Token> = Vec::new();
@@ -228,9 +266,6 @@ impl<'a> Parser<'a> {
                 if paren == 0 {
                     // (<Expr>)
                     let (expr, _, tks) = self.new_parser(list);
-                    if tks.len() > 0 {
-                        panic!()
-                    }
                     return expr;
                 }
             } else if tk.is_ptor(TokenPunctuator::Comma) {
@@ -238,9 +273,6 @@ impl<'a> Parser<'a> {
                     panic!()
                 }
                 let (expr, _, tks) = self.new_parser(list);
-                if tks.len() > 0 {
-                    panic!()
-                }
                 return expr;
             } else if tk.is_eof(true) {
                 panic!("脚本异常")
@@ -315,7 +347,7 @@ impl<'a> Parser<'a> {
                         // println!("left:{:?}", left);
                         left
                     }
-                    _ => todo!(),
+                    _ => todo!("{:?}", t),
                 },
                 _ => todo!(),
             }
