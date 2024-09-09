@@ -147,7 +147,7 @@ impl TokenKeyword {
 
 #[derive(Debug,Clone)]
 pub struct Token {
-    raw:String,    //便于调试
+    pub raw:String,    //便于调试
     pub index: usize,  //token的序号
 
     pub typ: TokenType,//token类型

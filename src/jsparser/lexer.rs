@@ -416,18 +416,16 @@ impl Lexer {
         println!("/*--------print--------*/");
         let mut p = Lexer::new(String::from(self.input.clone()));
         let mut line = 0;
-        let mut index = 1;
         loop {
             let tok = p.next_token();
             if tok.typ == TokenType::EOF {
                 break;
             }
-            line = tok.line;
-            print!("{}:{}",index, tok);
-            index+=1;
-            if line != tok.line {
+            if line != tok.line && line>0 {
                 println!("");
             }
+            line = tok.line;
+            print!("{}", tok);
         }
         println!("\n/*-------- end --------/*");
     }

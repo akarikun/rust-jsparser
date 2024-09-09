@@ -6,10 +6,22 @@ fn println(color: i32, label: &str, msg: String) {
 }
 fn main() {
     let input = r#"
-    // // let y = 11+(22*(33-44));  
-    // let x = 11+22*(33+44)-55;
-    // x++;
-    a==b+c;
+        (a+b);                      //Y
+        a+(b*(c-d));                //Y
+        //a+(b*(c-d));              //Y
+        let x = 11+22*(33+44)-55;   //Y
+        let y = a+(b*(c-d));        //Y
+        a();                        //Y
+        a(b());                     //Y
+        a(b(),c(),d(a+(b*(c-d))));  //Y
+        x++;                        //Y
+        a==b;                       //Y
+        c&&d;                       //Y
+        a==b&&c;                    //Y
+        c&&d;                       //Y
+        ;                           //Y
+        a;                          //Y
+        b                           //Y
 "#;
     let mut lexer = Lexer::new(String::from(input));
     lexer.print();

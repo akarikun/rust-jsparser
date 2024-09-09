@@ -85,8 +85,10 @@ impl Expr {
 
 impl Program {
     pub fn eval(&self) {
-        println!("LEN:{}", self.statements.len());
+        println!("eval LEN:{}", self.statements.len());
+        let mut index = 0;
         for stmt in &self.statements {
+            index+=1;
             match stmt {
                 // Stmt::Variable(kind, name, expr) => {
                 //     crate::println(
@@ -97,7 +99,7 @@ impl Program {
                 // }
                 _ => {
                     // println!("\x1b[31m eval stmt =>\x1b[39m {:?}",stmt);
-                    crate::println(31, "eval stmt =>", format!("{:?}", stmt));
+                    crate::println(31, "eval stmt =>", format!("({:?}) {:?}",index, stmt));
                 }
             }
         }
