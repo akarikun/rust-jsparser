@@ -1,38 +1,36 @@
-use std::{cell::RefCell, ops::BitAnd, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use super::token::{Token, TokenKeyword, TokenPunctuator, TokenType};
 
 pub trait ILexer {
     fn next_token(&mut self) -> Token;
 }
+
 pub struct Lexer {
     input: String,
-    position: usize,      // 当前字符位置
-    read_position: usize, // 下一个字符的位置
-    ch: Option<char>,     // 当前字符
-    line: usize,          // 当前行号
-    column: usize,        // 当前列号
+    chars: std::str::Chars<'static>, // 字符迭代器
+    position: usize,                 // 当前字符位置
+    read_position: usize,            // 下一个字符的位置
+    ch: Option<char>,                // 当前字符
+    line: usize,                     // 当前行号
+    column: usize,                   // 当前列号
 }
 
-pub struct TokenList{
-    // list:Vec<Token>,
-    list: Rc<RefCell<Vec<Token>>>, 
+pub struct TokenList {
+    list: Rc<RefCell<Vec<Token>>>,
 }
-impl ILexer for TokenList{
+impl ILexer for TokenList {
     fn next_token(&mut self) -> Token {
-        // println!("{:?}",self.list);
         if self.list.borrow_mut().len() == 0 {
             Token::new(TokenType::EOF, 0, 0)
-        }else{
+        } else {
             self.list.borrow_mut().remove(0)
         }
     }
 }
 impl TokenList {
-    pub fn new(list:Rc<RefCell<Vec<Token>>>)->Self{
-        TokenList {
-            list
-        }
+    pub fn new(list: Rc<RefCell<Vec<Token>>>) -> Self {
+        TokenList { list }
     }
 }
 
@@ -322,40 +320,42 @@ impl ILexer for Lexer {
 impl Lexer {
     pub fn new(input: String) -> Self {
         let mut lexer = Lexer {
-            input,
+            input: input.clone(),
+            chars: "".chars(), // 初始值
             position: 0,
             read_position: 0,
             ch: None,
             line: 1,   // 初始行号为1
             column: 0, // 初始列号为0
         };
+        let input_static: &'static str = Box::leak(input.clone().into_boxed_str());
+        lexer.chars = input_static.chars();
+
         lexer.read_char();
         lexer
     }
 
     fn read_char(&mut self) -> bool {
-        if self.read_position >= self.input.len() {
-            self.ch = None;
-        } else {
-            self.ch = self.input.chars().nth(self.read_position);
-        }
-        self.position = self.read_position;
-        self.read_position += 1;
+        if let Some(ch) = self.chars.next() {
+            self.ch = Some(ch);
+            self.position = self.read_position;
+            self.read_position += 1;
 
-        if let Some(ch) = self.ch {
             if ch == '\n' {
                 self.line += 1;
                 self.column = 0;
-                return true;
             } else {
                 self.column += 1;
             }
+            true
+        } else {
+            self.ch = None;
+            false
         }
-        false
     }
 
-    fn peek_char(&self) -> Option<char> {
-        self.input.chars().nth(self.read_position)
+    fn peek_char(&mut self) -> Option<char> {
+        self.chars.clone().next()
     }
 
     fn skip_whitespace(&mut self) {
@@ -369,59 +369,41 @@ impl Lexer {
     }
 
     fn read_number(&mut self) -> String {
-        let position = self.position;
+        let mut result = String::new();
         while let Some(ch) = self.ch {
             if ch.is_digit(10) {
+                result.push(ch);
                 self.read_char();
             } else {
                 break;
             }
         }
-        let number = self.input[position..self.position].to_string();
-        // println!("{:?}",number);
-        return number;
+        result
     }
 
     fn read_identifier(&mut self) -> String {
-        let position = self.position;
-
+        let mut result = String::new();
         while let Some(ch) = self.ch {
             if ch == '$' || ch.is_alphabetic() || ch.is_digit(10) {
+                result.push(ch);
                 self.read_char();
             } else {
                 break;
             }
         }
-        let ident = self.input[position..self.position].to_string();
-        // println!("{}",ident);
-        ident
+        result
     }
-
-    // fn read_symbol(&mut self)->String{
-    //     let position = self.position;
-
-    //     while let Some(ch) = self.ch {
-    //         if ch == '$' || ch.is_alphabetic() || ch.is_digit(10) {
-    //             self.read_char();
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    //     let ident = self.input[position..self.position].to_string();
-    //     println!("{}",ident);
-    //     ident
-    // }
 
     pub fn print(&mut self) {
         println!("/*--------print--------*/");
-        let mut p = Lexer::new(String::from(self.input.clone()));
+        let mut p = Lexer::new(self.input.clone());
         let mut line = 0;
         loop {
             let tok = p.next_token();
             if tok.typ == TokenType::EOF {
                 break;
             }
-            if line != tok.line && line>0 {
+            if line != tok.line && line > 0 {
                 println!("");
             }
             line = tok.line;

@@ -1,7 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
 
-// use crate::jsparser::expr::Expression;
-
 use super::{
     expr::{Expr, Operator, Program, Stmt},
     lexer::{ILexer, TokenList},
@@ -9,7 +7,6 @@ use super::{
 };
 
 pub struct Parser<'a> {
-    // lexer: Lexer,
     lexer: Box<dyn ILexer + 'a>,
     current_token: Token,
     peek_token: Token,
@@ -153,6 +150,9 @@ impl<'a> Parser<'a> {
         }
         v
     }
+    fn check_diff_line(&self)->bool{
+        return self.current_token.line!=self.peek_token.line;
+    }
 
     ///第二层 转换至Expr step: 2->2或2->3
     fn parse_expression(&mut self, count: usize) -> Vec<Option<Expr>> {
@@ -175,6 +175,16 @@ impl<'a> Parser<'a> {
                             self.next_token(); //ident
                             v.push(Some(Expr::Identifier(ident)));
                         }
+                        TokenType::Ident(t2)=>{
+                            if self.check_diff_line(){
+                                self.next_token(); //ident
+                                v.push(Some(Expr::Identifier(ident)));
+                                break;
+                            }
+                             else{
+                                panic!("{:?}",self.err("脚本异常"));
+                            }
+                        },
                         TokenType::Punctuator(t2) => match &t2 {
                             TokenPunctuator::INC => {
                                 let expr = self.parse_update_slot(ident, Operator::INC, false);
@@ -253,8 +263,6 @@ impl<'a> Parser<'a> {
     }
     fn recursion_parse(&mut self) -> Option<Expr> {
         let mut list: Vec<Token> = Vec::new();
-        // let list = Rc::new(RefCell::new(v));
-
         self.next_token(); //(
         let mut paren = 1;
         let mut tk = self.current_token.clone();
@@ -447,7 +455,6 @@ impl<'a> Parser<'a> {
         ));
     }
 
-    //base返回Expr,否则返回Some(Expr)
     fn parse_base_infix_expression(&mut self, left: Expr) -> Expr {
         let precedence = self.get_infix_precedence(&self.current_token.typ);
         let op = match self.current_token.typ {

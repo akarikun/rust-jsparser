@@ -6,6 +6,8 @@ fn println(color: i32, label: &str, msg: String) {
 }
 fn main() {
     let input = r#"
+        a+b&&c+d;                   //Y
+        let aa = a+b&&c+d;          //Y
         d(a+b+c);                   //Y
         (a+b);                      //Y
         a+(b*(c-d));                //Y
@@ -23,6 +25,7 @@ fn main() {
         ;                           //Y
         a;                          //Y
         b                           //Y
+        c
 "#;
     let mut lexer = Lexer::new(String::from(input));
     lexer.print();
