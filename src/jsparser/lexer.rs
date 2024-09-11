@@ -260,11 +260,23 @@ impl ILexer for Lexer {
                     )
                 }
             }
-            Some('!') => Token::new(
-                TokenType::Punctuator(TokenPunctuator::Not),
-                self.line,
-                self.column,
-            ),
+            Some('!') => {
+                let pc = self.peek_char();
+                if pc == Some('=') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::NE),
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Not),
+                        self.line,
+                        self.column,
+                    )
+                }
+            }
             Some(ch) if ch.is_digit(10) => {
                 let num = self.read_number();
                 return Token::new(TokenType::Number(num), self.line, self.column);
@@ -308,6 +320,54 @@ impl ILexer for Lexer {
             Some('$') => {
                 let ident = self.read_identifier();
                 Token::new(TokenType::Ident(ident), self.line, self.column)
+            }
+            Some('>') => {
+                let pc = self.peek_char();
+                if pc == Some('=') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::GTE),
+                        self.line,
+                        self.column,
+                    )
+                } else if pc ==Some('>'){
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::RShift),
+                        self.line,
+                        self.column,
+                    )
+                }else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::GT),
+                        self.line,
+                        self.column,
+                    )
+                }
+            }
+            Some('<') => {
+                let pc = self.peek_char();
+                if pc == Some('=') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::LTE),
+                        self.line,
+                        self.column,
+                    )
+                } else if pc ==Some('<'){
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::LShift),
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::LT),
+                        self.line,
+                        self.column,
+                    )
+                }
             }
             None => Token::new(TokenType::EOF, self.line, self.column),
             _ => Token::new(TokenType::Illegal, self.line, self.column),

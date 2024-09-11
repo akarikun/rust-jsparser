@@ -4,10 +4,10 @@ pub enum Expr {
     Identifier(String),
     Number(i64),
 
-    Prefix(Prefix, Box<Expr>),          // !a  -1
-    Call(Box<Expr>, Vec<Expr>),         //Box<Expr> => Identifier(String)
-    Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,! 
-    Update(Box<Expr>,Operator, bool) //a++/++a     bool:存放++的前后位置
+    Prefix(Prefix, Box<Expr>),             // !a  -1
+    Call(Box<Expr>, Vec<Expr>),            //Box<Expr> => Identifier(String)
+    Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
+    Update(Box<Expr>, Operator, bool),     //a++/++a     bool:存放++的前后位置
 }
 
 #[derive(Debug, PartialEq)]
@@ -20,23 +20,28 @@ pub enum Expression {
 pub enum Prefix {
     Negate, // -expr
     Not,    // !
-   
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum Operator {
-    Operator = 0,//预留值
     Plus,
     Minus,
     Multiply,
     Divide,
-
-    Logical = 10,//预留值
-    Equal, //==
-
-    And,
     Or,
-
+    And,
+    Not,
+    LShift,
+    RShift,
+    Equal,
+    NE,
+    GT,
+    GTE,
+    LT,
+    LTE,
+    BitOr,
+    BitXor,
+    BitAnd,
     INC,
 }
 
@@ -45,7 +50,7 @@ pub enum Stmt {
     Variable(String, String, Expr),
     Expression(Expr),
     If(),
-    Unexpected(String),//异常
+    Unexpected(String), //异常
 }
 
 #[derive(Debug)]
@@ -88,7 +93,7 @@ impl Program {
         println!("eval LEN:{}", self.statements.len());
         let mut index = 0;
         for stmt in &self.statements {
-            index+=1;
+            index += 1;
             match stmt {
                 // Stmt::Variable(kind, name, expr) => {
                 //     crate::println(
@@ -99,7 +104,7 @@ impl Program {
                 // }
                 _ => {
                     // println!("\x1b[31m eval stmt =>\x1b[39m {:?}",stmt);
-                    crate::println(31, "eval stmt =>", format!("({:?}) {:?}",index, stmt));
+                    crate::println(31, "eval stmt =>", format!("({:?}) {:?}", index, stmt));
                 }
             }
         }

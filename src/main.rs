@@ -6,26 +6,31 @@ fn println(color: i32, label: &str, msg: String) {
 }
 fn main() {
     let input = r#"
-        a+b&&c+d;                   //Y
-        let aa = a+b&&c+d;          //Y
-        d(a+b+c);                   //Y
-        (a+b);                      //Y
-        a+(b*(c-d));                //Y
-        //a+(b*(c-d));              //Y
-        let x = 11+22*(33+44)-55;   //Y
-        let y = a+(b*(c-d));        //Y
-        a();                        //Y
-        a(b());                     //Y
-        a(b(),c(),d(a+(b*(c-d))));  //Y
-        x++;                        //Y
-        a==b;                       //Y
-        c&&d;                       //Y
-        a==b&&c;                    //Y
-        c&&d;                       //Y
-        ;                           //Y
-        a;                          //Y
-        b                           //Y
-        c
+        1+1+d+b                                         //Y
+        1+1                                             //Y 在考虑是否禁止"非;换行"的逻辑
+        +d+b                                            //Y
+        a(1+1+d+b);                                     //Y
+        let aa = a+(b-c) || (c&&d) &&e || (f*e);        //Y
+        a+b&&c+d;                                       //Y
+        let aabbb = a+b&&c+d;                           //Y
+        let t=a+b+c;                                    //Y
+        (a+b);                                          //Y
+        a+(b*(c-d));                                    //Y
+        a+(b*(c-d));                                    //Y
+        let x = 11+22*(33+44)-55;                       //Y
+        let y = a+(b*(c-d));                            //Y
+        a();                                            //Y
+        a(b());                                         //Y
+        a(b(),c(),d(a+(b*(c-d))));                      //Y
+        x++;                                            //Y
+        a==b;                                           //Y
+        c&&d;                                           //Y
+        a==b&&c;                                        //Y
+        c&&d;                                           //Y
+        ;                                               //Y
+        a;                                              //Y
+        b                                               //Y
+        c                                               //Y 
 "#;
     let mut lexer = Lexer::new(String::from(input));
     lexer.print();

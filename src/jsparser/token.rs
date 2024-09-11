@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug,Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Illegal,
     EOF,
@@ -9,8 +9,8 @@ pub enum TokenType {
     Punctuator(TokenPunctuator),
     Keyword(TokenKeyword),
 }
-impl TokenType{
-    fn to_raw(&self)->String{
+impl TokenType {
+    fn to_raw(&self) -> String {
         match &self {
             TokenType::Illegal => "Illegal".to_string(),
             TokenType::EOF => "EOF".to_string(),
@@ -22,7 +22,7 @@ impl TokenType{
     }
 }
 
-#[derive(Debug,Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenPunctuator {
     ///=
     MOV, //=
@@ -58,13 +58,26 @@ pub enum TokenPunctuator {
     LSParen, //[
     ///]
     RSParen, //]
+    /// \>
+    GT, // >
+    /// \>=
+    GTE, // >=
+    /// <
+    LT, // <
+    /// <=
+    LTE, // <=
+    /// !=
+    NE, // !=
+    /// <<
+    LShift, //<<
+    /// \>>
+    RShift, //>>
     ///;
     Semicolon, //;
     ///.
     Dot, //.
     ///,
     Comma, //,
-
     ///&
     BitAnd, //&
     ///|
@@ -111,6 +124,32 @@ impl TokenPunctuator {
             TokenPunctuator::RCParen => String::from("}"),
             TokenPunctuator::LSParen => String::from("["),
             TokenPunctuator::RSParen => String::from("]"),
+            TokenPunctuator::GT => String::from(">"),
+            TokenPunctuator::GTE => String::from(">="),
+            TokenPunctuator::LT => String::from("<"),
+            TokenPunctuator::LTE => String::from("<="),
+            TokenPunctuator::NE => String::from("!="),
+            TokenPunctuator::LShift => String::from("<<"),
+            TokenPunctuator::RShift => String::from(">>"),
+        }
+    }
+    pub fn is_precedence(&self) -> bool {
+        match &self {
+            TokenPunctuator::Plus | TokenPunctuator::Minus => true,
+            TokenPunctuator::Multiply | TokenPunctuator::Divide => true,
+            TokenPunctuator::Or => true,
+            TokenPunctuator::And => true,
+            TokenPunctuator::Not => true,
+            TokenPunctuator::LShift | TokenPunctuator::RShift => true,
+            TokenPunctuator::Equal | TokenPunctuator::NE => true,
+            TokenPunctuator::GT
+            | TokenPunctuator::GTE
+            | TokenPunctuator::LT
+            | TokenPunctuator::LTE => true,
+            TokenPunctuator::BitOr => true,
+            TokenPunctuator::BitXor => true,
+            TokenPunctuator::BitAnd => true,
+            _ => return false,
         }
     }
 }
@@ -120,7 +159,7 @@ impl std::fmt::Display for TokenPunctuator {
         write!(f, "{}", self.to_raw())
     }
 }
-#[derive(Debug,Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKeyword {
     Let,    //let
     If,     //if
@@ -145,15 +184,14 @@ impl TokenKeyword {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    pub raw:String,    //便于调试
-    pub index: usize,  //token的序号
+    pub raw: String,  //便于调试
+    pub index: usize, //token的序号
 
-    pub typ: TokenType,//token类型
-    pub line: usize,   //行
-    pub column: usize, //列
-    
+    pub typ: TokenType, //token类型
+    pub line: usize,    //行
+    pub column: usize,  //列
 }
 
 static mut TOEKN_INDEX: usize = 0;
@@ -173,51 +211,35 @@ impl Token {
             raw,
         }
     }
-    pub fn desc(&self)->String{
-        String::from(format!("{:?},index:{},line:{},column:{}",self.typ,self.index,self.line,self.column))
+    pub fn desc(&self) -> String {
+        String::from(format!(
+            "{:?},index:{},line:{},column:{}",
+            self.typ, self.index, self.line, self.column
+        ))
     }
-    /// 是否是运算符号 + - * /
-    pub fn is_operator(&self)->bool{
-        match &self.typ{
-            TokenType::Punctuator(t) =>{
-                match &t{
-                    TokenPunctuator::Plus|TokenPunctuator::Minus|TokenPunctuator::Multiply|TokenPunctuator::Divide => true,
-                    _=>false
-                }
-            },
+    
+    pub fn is_precedence(&self)->bool{
+        match &self.typ {
+            TokenType::Punctuator(t) => t.is_precedence(),
             _=>false
         }
     }
-    /// 是否是逻辑符号 && ||
-    pub fn is_logical(&self)->bool{
-        match &self.typ{
-            TokenType::Punctuator(t) =>{
-                match &t{
-                    TokenPunctuator::And|TokenPunctuator::Or => true,
-                    _=>false
-                }
+    pub fn is_eof(&self, is_semicolon: bool) -> bool {
+        match &self.typ {
+            TokenType::EOF => true,
+            TokenType::Punctuator(t) => match &t {
+                TokenPunctuator::Semicolon => is_semicolon,
+                _ => false,
             },
-            _=>false
+            _ => false,
         }
     }
-    pub fn is_eof(&self,is_semicolon:bool)->bool{
-        match &self.typ{
-            TokenType::EOF=>true,
-            TokenType::Punctuator(t) =>{
-                match &t{
-                    TokenPunctuator::Semicolon => is_semicolon,
-                    _=>false
-                }
-            },
-            _=>false
-        }
-    }
-    pub fn is_ptor(&self,ptor:TokenPunctuator)->bool{
-        match &self.typ{
-            TokenType::Punctuator(t) =>{
+    pub fn is_ptor(&self, ptor: TokenPunctuator) -> bool {
+        match &self.typ {
+            TokenType::Punctuator(t) => {
                 return ptor == *t;
-            },
-            _=>false
+            }
+            _ => false,
         }
     }
 }

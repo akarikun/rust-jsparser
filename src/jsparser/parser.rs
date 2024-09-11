@@ -101,7 +101,7 @@ impl<'a> Parser<'a> {
                 break;
             }
             match &self.current_token.typ {
-                TokenType::Ident(t) => {
+                TokenType::Number(t) | TokenType::Ident(t) => {
                     for i in self.parse_expression(1) {
                         if let Some(expr) = i {
                             v.push(Some(Stmt::Expression(expr)));
@@ -122,9 +122,7 @@ impl<'a> Parser<'a> {
                         v.push(Some(Stmt::Unexpected(self.peek_token.desc())));
                     }
                     self.next_token(); //ident
-                    let expr = self
-                        .parse_base_expression(&InfixPrecedence::Lowest, &LogicalPrecedence::Lowest)
-                        .unwrap();
+                    let expr = self.parse_base_expression(Precedence::Lowest).unwrap();
                     self.skip_next_token_ptor(TokenPunctuator::Semicolon, true); //';'
                     v.push(Some(Stmt::Variable(format!("{}", k), name, expr)));
                 }
@@ -150,8 +148,8 @@ impl<'a> Parser<'a> {
         }
         v
     }
-    fn check_diff_line(&self)->bool{
-        return self.current_token.line!=self.peek_token.line;
+    fn check_diff_line(&self) -> bool {
+        return self.current_token.line != self.peek_token.line;
     }
 
     ///第二层 转换至Expr step: 2->2或2->3
@@ -168,59 +166,47 @@ impl<'a> Parser<'a> {
                 return v;
             }
             match &self.current_token.typ {
-                TokenType::Ident(t) => {
+                TokenType::Number(t) | TokenType::Ident(t) => {
                     let ident = t.clone();
                     match &self.peek_token.typ {
                         TokenType::EOF => {
                             self.next_token(); //ident
                             v.push(Some(Expr::Identifier(ident)));
                         }
-                        TokenType::Ident(t2)=>{
-                            if self.check_diff_line(){
+                        TokenType::Ident(t2) => {
+                            if self.check_diff_line() {
                                 self.next_token(); //ident
                                 v.push(Some(Expr::Identifier(ident)));
                                 break;
+                            } else {
+                                panic!("{:?}", self.err("脚本异常"));
                             }
-                             else{
-                                panic!("{:?}",self.err("脚本异常"));
+                        }
+                        TokenType::Punctuator(t2) => {
+                            if t2.is_precedence() {
+                                v.push(self.parse_base_expression(Precedence::Lowest));
+                            } else {
+                                match &t2 {
+                                    TokenPunctuator::INC => {
+                                        let expr =
+                                            self.parse_update_slot(ident, Operator::INC, false);
+                                        v.push(expr);
+                                    }
+                                    TokenPunctuator::LParen => {
+                                        v.push(self.parse_call_slot(ident));
+                                    }
+                                    TokenPunctuator::Comma => {
+                                        self.next_token(); //ident
+                                        v.push(Some(Expr::Identifier(ident)))
+                                    }
+                                    TokenPunctuator::Semicolon => {
+                                        self.next_token(); //ident
+                                        v.push(Some(Expr::Identifier(ident)))
+                                    }
+                                    _ => todo!("{:?}", t2),
+                                }
                             }
-                        },
-                        TokenType::Punctuator(t2) => match &t2 {
-                            TokenPunctuator::INC => {
-                                let expr = self.parse_update_slot(ident, Operator::INC, false);
-                                v.push(expr);
-                            }
-                            TokenPunctuator::Equal => {
-                                let expr = self.parse_logical_slot(ident);
-                                v.push(expr);
-                            }
-                            TokenPunctuator::And | TokenPunctuator::Or => {
-                                v.push(self.parse_logical_slot_sub(ident, t2.clone()));
-                            }
-                            TokenPunctuator::LParen => {
-                                v.push(self.parse_call_slot(ident));
-                            }
-                            TokenPunctuator::Comma => {
-                                self.next_token(); //ident
-                                v.push(Some(Expr::Identifier(ident)))
-                            }
-                            TokenPunctuator::Semicolon => {
-                                self.next_token(); //ident
-                                v.push(Some(Expr::Identifier(ident)))
-                            }
-                            TokenPunctuator::Plus
-                            | TokenPunctuator::Minus
-                            | TokenPunctuator::Multiply
-                            | TokenPunctuator::Divide => {
-                                v.push(self.parse_base_expression(
-                                    &InfixPrecedence::Lowest,
-                                    &LogicalPrecedence::Lowest,
-                                ));
-                                self.skip_next_token_ptor(TokenPunctuator::Semicolon, true);
-                                //';'
-                            }
-                            _ => todo!("{:?}", t2),
-                        },
+                        }
                         _ => todo!("{:?}", self.peek_token.typ),
                     }
                 }
@@ -228,7 +214,13 @@ impl<'a> Parser<'a> {
                     TokenPunctuator::LParen => {
                         v.push(Some(self.recursion_parse().expect("脚本异常")));
                     }
-                    _ => todo!("{:?}", &t),
+                    _ => {
+                        // if t.is_precedence(){
+                        //     v.push(self.parse_base_expression(Precedence::Lowest));
+                        // }else{
+                        todo!("{:?}", &t)
+                        // }
+                    }
                 },
                 _ => todo!("{:?}", self.current_token.typ),
             }
@@ -272,7 +264,6 @@ impl<'a> Parser<'a> {
             } else if tk.is_ptor(TokenPunctuator::RParen) {
                 paren -= 1;
                 if paren == 0 {
-                    // (<Expr>)
                     let (expr, _, tks) = self.new_parser(list);
                     return expr;
                 }
@@ -291,11 +282,7 @@ impl<'a> Parser<'a> {
         }
     }
     ///第三层(base) 转换至Expr step: 3->3
-    fn parse_base_expression(
-        &mut self,
-        infix: &InfixPrecedence,
-        logical: &LogicalPrecedence,
-    ) -> Option<Expr> {
+    fn parse_base_expression(&mut self, infix: Precedence) -> Option<Expr> {
         let mut left: Expr = Expr::Empty;
         left = match &self.current_token.typ {
             TokenType::Ident(ident) => {
@@ -312,10 +299,7 @@ impl<'a> Parser<'a> {
                     TokenPunctuator::LParen => {
                         self.next_token();
                         //遇到左符号 从头开始解析
-                        let expr = self.parse_base_expression(
-                            &InfixPrecedence::Lowest,
-                            &LogicalPrecedence::Lowest,
-                        )?;
+                        let expr = self.parse_base_expression(Precedence::Lowest)?;
                         if self.peek_token.typ == TokenType::Punctuator(TokenPunctuator::RParen) {
                             self.next_token();
                         } else {
@@ -342,41 +326,75 @@ impl<'a> Parser<'a> {
             }
             _ => todo!(),
         };
-        //infix
-        while infix < &self.get_infix_precedence(&self.peek_token.typ) {
+        while infix < self.get_precedence(self.peek_token.typ.clone()) {
             left = match &self.peek_token.typ {
-                TokenType::Punctuator(t) => match t {
-                    TokenPunctuator::Plus
-                    | TokenPunctuator::Minus
-                    | TokenPunctuator::Multiply
-                    | TokenPunctuator::Divide => {
+                TokenType::Punctuator(t) => {
+                    if t.is_precedence() {
                         self.next_token();
-                        left = self.parse_base_infix_expression(left);
-                        // println!("left:{:?}", left);
+                        left = self.parse_base_infix(left);
                         left
+                    } else {
+                        todo!()
                     }
-                    _ => todo!("{:?}", t),
-                },
-                _ => todo!(),
-            }
-        }
-        //logical
-        while logical < &self.get_logical_precedence(&self.peek_token.typ) {
-            left = match &self.peek_token.typ {
-                TokenType::Punctuator(t) => match t {
-                    TokenPunctuator::And | TokenPunctuator::Or | TokenPunctuator::Not => {
-                        self.next_token();
-                        left = self.parse_base_logical_expression(left);
-                        left
-                    }
-                    _ => todo!(),
-                },
+                    // _ => todo!("{:?}", t),
+                }
                 _ => todo!(),
             }
         }
         Some(left)
     }
-
+    fn get_precedence(&self, typ: TokenType) -> Precedence {
+        match typ {
+            TokenType::Punctuator(t) => match &t {
+                TokenPunctuator::Plus | TokenPunctuator::Minus => Precedence::Sum,
+                TokenPunctuator::Multiply | TokenPunctuator::Divide => Precedence::Product,
+                TokenPunctuator::Or => Precedence::Or,
+                TokenPunctuator::And => Precedence::And,
+                TokenPunctuator::Not => Precedence::Prefix,
+                TokenPunctuator::LShift | TokenPunctuator::RShift => Precedence::Shift,
+                TokenPunctuator::Equal | TokenPunctuator::NE => Precedence::Equality,
+                TokenPunctuator::GT
+                | TokenPunctuator::GTE
+                | TokenPunctuator::LT
+                | TokenPunctuator::LTE => Precedence::Comparison,
+                TokenPunctuator::BitOr => Precedence::BitOr,
+                TokenPunctuator::BitXor => Precedence::BitXor,
+                TokenPunctuator::BitAnd => Precedence::BitAnd,
+                _ => Precedence::Lowest,
+            },
+            _ => Precedence::Lowest,
+        }
+    }
+    fn parse_base_infix(&mut self, left: Expr) -> Expr {
+        let precedence = self.get_precedence(self.current_token.typ.clone());
+        let op = match &self.current_token.typ {
+            TokenType::Punctuator(t) => match t {
+                TokenPunctuator::Plus => Operator::Plus,
+                TokenPunctuator::Minus => Operator::Minus,
+                TokenPunctuator::Multiply => Operator::Multiply,
+                TokenPunctuator::Divide => Operator::Divide,
+                TokenPunctuator::Or => Operator::Or,
+                TokenPunctuator::And => Operator::And,
+                TokenPunctuator::Not => Operator::Not,
+                TokenPunctuator::LShift => Operator::LShift,
+                TokenPunctuator::RShift => Operator::RShift,
+                TokenPunctuator::Equal => Operator::Equal,
+                TokenPunctuator::NE => Operator::NE,
+                TokenPunctuator::GT => Operator::GT,
+                TokenPunctuator::GTE => Operator::GTE,
+                TokenPunctuator::LT => Operator::LT,
+                TokenPunctuator::LTE => Operator::LTE,
+                TokenPunctuator::BitOr => Operator::BitOr,
+                TokenPunctuator::BitXor => Operator::BitXor,
+                TokenPunctuator::BitAnd => Operator::BitAnd,
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        };
+        self.next_token(); // Skip operator
+        let right = self.parse_base_expression(precedence);
+        Expr::Infix(Box::new(left), op, Box::new(right.unwrap()))
+    }
     //a++,a--,++a,--a
     fn parse_update_slot(&mut self, ident: String, op: Operator, prefix: bool) -> Option<Expr> {
         let expr = Expr::Update(Box::new(Expr::Identifier(ident)), op, prefix);
@@ -385,104 +403,6 @@ impl<'a> Parser<'a> {
         self.skip_next_token_ptor(TokenPunctuator::Semicolon, true); //skip ;
         Some(expr)
     }
-    //a==
-    fn parse_logical_slot(&mut self, ident: String) -> Option<Expr> {
-        let box_ident = Box::new(Expr::Identifier(ident.clone()));
-        // <a==>
-        self.next_token(); //skip ident
-        self.next_token(); //skip ==
-                           //a==b      a==b;
-        if self.peek_token.is_eof(true) {
-            //a==b
-            match &self.current_token.typ {
-                TokenType::Ident(t) | TokenType::Number(t) => {
-                    let expr = Expr::Infix(
-                        box_ident,
-                        Operator::Equal,
-                        Box::new(Expr::Identifier(t.clone())),
-                    );
-                    self.next_token();
-                    return Some(expr);
-                }
-                _ => todo!("{:?}", &self.current_token.typ),
-            }
-        }
-        //a==b+c;
-        if self.peek_token.is_operator() {
-            let right =
-                self.parse_base_expression(&InfixPrecedence::Lowest, &LogicalPrecedence::Lowest)?;
-            self.next_token();
-            let expr = Expr::Infix(box_ident, Operator::Equal, Box::new(right));
-            return Some(expr);
-        }
-        //a== b&&c
-        if self.peek_token.is_logical() {
-            //更改优先级顺序
-            if let Some(left) =
-                self.parse_base_expression(&InfixPrecedence::Lowest, &LogicalPrecedence::Lowest)
-            {
-                match left {
-                    Expr::Infix(left, op, right) => {
-                        let expr = Expr::Infix(
-                            Box::new(Expr::Infix(box_ident, Operator::Equal, left)),
-                            op,
-                            right,
-                        );
-                        return Some(expr);
-                    }
-                    _ => return None,
-                }
-            }
-        }
-        todo!("{:?}", &self.current_token.typ);
-    }
-    //a&&
-    fn parse_logical_slot_sub(&mut self, ident: String, typ: TokenPunctuator) -> Option<Expr> {
-        // && ||
-        let op = if typ == TokenPunctuator::And {
-            Operator::And
-        } else {
-            Operator::Or
-        };
-        self.next_token(); //skip ident
-        self.next_token(); //skip ==
-        let expr =
-            self.parse_base_expression(&InfixPrecedence::Lowest, &LogicalPrecedence::Lowest)?;
-        return Some(Expr::Infix(
-            Box::new(Expr::Identifier(ident)),
-            op,
-            Box::new(expr),
-        ));
-    }
-
-    fn parse_base_infix_expression(&mut self, left: Expr) -> Expr {
-        let precedence = self.get_infix_precedence(&self.current_token.typ);
-        let op = match self.current_token.typ {
-            TokenType::Punctuator(TokenPunctuator::Plus) => Operator::Plus,
-            TokenType::Punctuator(TokenPunctuator::Minus) => Operator::Minus,
-            TokenType::Punctuator(TokenPunctuator::Multiply) => Operator::Multiply,
-            TokenType::Punctuator(TokenPunctuator::Divide) => Operator::Divide,
-            _ => unreachable!(),
-        };
-
-        self.next_token(); // Skip operator
-        let right = self.parse_base_expression(&precedence, &LogicalPrecedence::Lowest);
-        Expr::Infix(Box::new(left), op, Box::new(right.unwrap()))
-    }
-    fn parse_base_logical_expression(&mut self, left: Expr) -> Expr {
-        let precedence = self.get_logical_precedence(&self.current_token.typ);
-        let op = match self.current_token.typ {
-            TokenType::Punctuator(TokenPunctuator::And) => Operator::And,
-            TokenType::Punctuator(TokenPunctuator::Or) => Operator::Or,
-            TokenType::Punctuator(TokenPunctuator::Not) => panic!(),
-            _ => unreachable!(),
-        };
-
-        self.next_token(); // Skip operator
-        let right = self.parse_base_expression(&InfixPrecedence::Lowest, &precedence);
-        Expr::Infix(Box::new(left), op, Box::new(right.unwrap()))
-    }
-
     //a(
     fn parse_call_slot(&mut self, ident: String) -> Option<Expr> {
         //recursion_parse 同逻辑
@@ -530,42 +450,21 @@ impl<'a> Parser<'a> {
         }
         return Some(Expr::Call(Box::new(Expr::Identifier(ident)), args));
     }
-
-    fn get_infix_precedence(&self, typ: &TokenType) -> InfixPrecedence {
-        match typ {
-            TokenType::Punctuator(TokenPunctuator::Plus | TokenPunctuator::Minus) => {
-                InfixPrecedence::Sum
-            }
-            TokenType::Punctuator(TokenPunctuator::Multiply | TokenPunctuator::Divide) => {
-                InfixPrecedence::Product
-            }
-            TokenType::Punctuator(TokenPunctuator::LParen) => InfixPrecedence::Paren,
-            _ => InfixPrecedence::Lowest,
-        }
-    }
-    fn get_logical_precedence(&self, typ: &TokenType) -> LogicalPrecedence {
-        match typ {
-            TokenType::Punctuator(TokenPunctuator::And) => LogicalPrecedence::And,
-            TokenType::Punctuator(TokenPunctuator::Or) => LogicalPrecedence::Or,
-            TokenType::Punctuator(TokenPunctuator::Not) => LogicalPrecedence::Not,
-            _ => LogicalPrecedence::Lowest,
-        }
-    }
 }
 
+/// 不处理a++等未定义行为
 #[derive(Debug, PartialEq, PartialOrd)]
-enum InfixPrecedence {
+enum Precedence {
     Lowest,
-    Sum,     // + -
-    Product, // * /
-    // Prefix,  // -x
-    Paren, // ()
-}
-
-#[derive(Debug, PartialEq, PartialOrd)]
-enum LogicalPrecedence {
-    Lowest,
-    Or,  //||
-    And, //&&
-    Not, // !
+    Or,         // ||
+    And,        // &&
+    Equality,   // ==, !=
+    Comparison, // <, >, <=, >=
+    BitOr,      // |
+    BitXor,     // ^
+    BitAnd,     // &
+    Shift,      // <<, >>
+    Sum,        // + -
+    Product,    // * /
+    Prefix,     // !x (前缀运算符) -x, 暂时不处理(负号跟减号有冲突,非表达符号的逻辑与基本也不一致,非为!开始,基本逻辑表达式为字母数字开始,后期做优化)
 }
