@@ -1,23 +1,17 @@
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Empty, //base
+    Empty,              //base
+    Unexpected(String), //异常
     Identifier(String),
     Number(i64),
-
-    Prefix(Prefix, Box<Expr>), // !a  -1
-    Call(Box<Expr>, Vec<Expr>),
-    Member(Box<Expr>, Vec<Expr>),
+    Assignment(String, Box<Expr>),
+    Prefix(Prefix, Box<Expr>),             // !a  -1
+    Call(String, Vec<Expr>),            // a()
+    Member(String, Vec<Expr>),          // a[]
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
-    Update(Box<Expr>, Operator, bool),     //a++/++a     bool:存放++的前后位置
-}
-
-#[derive(Debug, Clone)]
-pub enum Stmt {
-    Variable(String, String, Expr),
-    Assignment(String, Expr),
-    Expression(Expr),
-    If(),
-    Unexpected(String), //异常
+    Update(String, Operator, bool),     //a++/++a     bool:存放++的前后位置
+    Variable(String, String, Box<Expr>),   //let a =
+    If(Box<Expr>, Vec<Expr>, Vec<Expr>),   //if
 }
 
 #[derive(Debug, Clone)]
@@ -52,7 +46,7 @@ pub enum Operator {
 
 #[derive(Debug)]
 pub struct Program {
-    pub statements: Vec<Stmt>,
+    pub statements: Vec<Expr>,
 }
 
 impl Expr {
@@ -90,19 +84,12 @@ impl Program {
     pub fn eval(&self) {
         println!("eval LEN:{}", self.statements.len());
         let mut index = 0;
-        for stmt in &self.statements {
+        for expr in &self.statements {
             index += 1;
-            match stmt {
-                // Stmt::Variable(kind, name, expr) => {
-                //     crate::println(
-                //         31,
-                //         "calc =>",
-                //         format!("{} {} = {}", kind, name, expr.calc().unwrap()),
-                //     );
-                // }
+            match expr {
                 _ => {
                     // println!("\x1b[31m eval stmt =>\x1b[39m {:?}",stmt);
-                    crate::println(31, "eval stmt =>", format!("({:?}) {:?}", index, stmt));
+                    crate::println(31, "eval expr =>", format!("({:?}) {:?}", index, expr));
                 }
             }
         }
