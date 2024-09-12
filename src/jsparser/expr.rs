@@ -4,21 +4,26 @@ pub enum Expr {
     Identifier(String),
     Number(i64),
 
-    Prefix(Prefix, Box<Expr>),             // !a  -1
-    Call(Box<Expr>, Vec<Expr>),            //Box<Expr> => Identifier(String)
+    Prefix(Prefix, Box<Expr>), // !a  -1
+    Call(Box<Expr>, Vec<Expr>),
+    Member(Box<Expr>, Vec<Expr>),
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
     Update(Box<Expr>, Operator, bool),     //a++/++a     bool:存放++的前后位置
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Expression {
-    Assignment,
-    Update,
+#[derive(Debug, Clone)]
+pub enum Stmt {
+    Variable(String, String, Expr),
+    Assignment(String, Expr),
+    Expression(Expr),
+    If(),
+    Unexpected(String), //异常
 }
 
 #[derive(Debug, Clone)]
 pub enum Prefix {
     Negate, // -expr
+    Abs,    // +a
     Not,    // !
 }
 
@@ -45,14 +50,6 @@ pub enum Operator {
     INC,
 }
 
-#[derive(Debug, Clone)]
-pub enum Stmt {
-    Variable(String, String, Expr),
-    Expression(Expr),
-    If(),
-    Unexpected(String), //异常
-}
-
 #[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Stmt>,
@@ -77,6 +74,7 @@ impl Expr {
                 let val = expr.calc()?;
                 match op {
                     Prefix::Negate => Some(-val),
+                    Prefix::Abs => Some(val),
                     Prefix::Not => todo!(), //Some(-val),
                 }
             }

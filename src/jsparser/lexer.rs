@@ -278,47 +278,43 @@ impl ILexer for Lexer {
                 }
             }
             Some(ch) if ch.is_digit(10) => {
-                let num = self.read_number();
-                return Token::new(TokenType::Number(num), self.line, self.column);
+                let (num, line) = self.read_number();
+                return Token::new(TokenType::Number(num), line, self.column);
             }
             Some(ch) if ch.is_alphabetic() => {
-                let ident = self.read_identifier();
+                let (ident, line) = self.read_identifier();
                 match ident.as_str() {
                     "let" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Let),
-                            self.line,
+                            line,
                             self.column,
                         );
                     }
                     "if" => {
-                        return Token::new(
-                            TokenType::Keyword(TokenKeyword::If),
-                            self.line,
-                            self.column,
-                        )
+                        return Token::new(TokenType::Keyword(TokenKeyword::If), line, self.column)
                     }
                     "else" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Else),
-                            self.line,
+                            line,
                             self.column,
                         )
                     }
                     "return" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Return),
-                            self.line,
+                            line,
                             self.column,
                         )
                     }
                     _ => {
-                        return Token::new(TokenType::Ident(ident), self.line, self.column);
+                        return Token::new(TokenType::Ident(ident), line, self.column);
                     }
                 }
             }
             Some('$') => {
-                let ident = self.read_identifier();
+                let (ident, line) = self.read_identifier();
                 Token::new(TokenType::Ident(ident), self.line, self.column)
             }
             Some('>') => {
@@ -330,14 +326,14 @@ impl ILexer for Lexer {
                         self.line,
                         self.column,
                     )
-                } else if pc ==Some('>'){
+                } else if pc == Some('>') {
                     self.read_char();
                     Token::new(
                         TokenType::Punctuator(TokenPunctuator::RShift),
                         self.line,
                         self.column,
                     )
-                }else {
+                } else {
                     Token::new(
                         TokenType::Punctuator(TokenPunctuator::GT),
                         self.line,
@@ -354,7 +350,7 @@ impl ILexer for Lexer {
                         self.line,
                         self.column,
                     )
-                } else if pc ==Some('<'){
+                } else if pc == Some('<') {
                     self.read_char();
                     Token::new(
                         TokenType::Punctuator(TokenPunctuator::LShift),
@@ -390,7 +386,6 @@ impl Lexer {
         };
         let input_static: &'static str = Box::leak(input.clone().into_boxed_str());
         lexer.chars = input_static.chars();
-
         lexer.read_char();
         lexer
     }
@@ -428,8 +423,9 @@ impl Lexer {
         }
     }
 
-    fn read_number(&mut self) -> String {
+    fn read_number(&mut self) -> (String, usize) {
         let mut result = String::new();
+        let line = self.line;
         while let Some(ch) = self.ch {
             if ch.is_digit(10) {
                 result.push(ch);
@@ -438,11 +434,12 @@ impl Lexer {
                 break;
             }
         }
-        result
+        (result, line)
     }
 
-    fn read_identifier(&mut self) -> String {
+    fn read_identifier(&mut self) -> (String, usize) {
         let mut result = String::new();
+        let line = self.line;
         while let Some(ch) = self.ch {
             if ch == '$' || ch.is_alphabetic() || ch.is_digit(10) {
                 result.push(ch);
@@ -451,7 +448,7 @@ impl Lexer {
                 break;
             }
         }
-        result
+        (result, line)
     }
 
     pub fn print(&mut self) {
@@ -469,6 +466,6 @@ impl Lexer {
             line = tok.line;
             print!("{}", tok);
         }
-        println!("\n/*-------- end --------/*");
+        println!("\n/*-------- end --------*/");
     }
 }

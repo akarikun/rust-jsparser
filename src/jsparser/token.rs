@@ -152,6 +152,12 @@ impl TokenPunctuator {
             _ => return false,
         }
     }
+    pub fn is_prefix(&self)->bool{
+        match &self {
+            TokenPunctuator::Not | TokenPunctuator::Plus| TokenPunctuator::Minus=> true,
+            _=>false
+        }
+    }
 }
 
 impl std::fmt::Display for TokenPunctuator {
@@ -240,6 +246,12 @@ impl Token {
                 return ptor == *t;
             }
             _ => false,
+        }
+    }
+    pub fn is_prefix(&self)->bool{
+        match &self.typ {
+            TokenType::Punctuator(t) => t.is_prefix(),
+            _=>false
         }
     }
 }
