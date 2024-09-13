@@ -6,12 +6,13 @@ pub enum Expr {
     Number(i64),
     Assignment(String, Box<Expr>),
     Prefix(Prefix, Box<Expr>),             // !a  -1
-    Call(String, Vec<Expr>),            // a()
-    Member(String, Vec<Expr>),          // a[]
+    Call(String, Vec<Expr>),               // a()
+    Member(String, Vec<Expr>),             // a[]
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
-    Update(String, Operator, bool),     //a++/++a     bool:存放++的前后位置
+    Update(String, Operator, bool),        //a++/++a     bool:存放++的前后位置
     Variable(String, String, Box<Expr>),   //let a =
-    If(Box<Expr>, Vec<Expr>, Vec<Expr>),   //if
+    If(Box<Expr>, Box<Expr>, Box<Expr>),   //if
+    BlockStatement(Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]

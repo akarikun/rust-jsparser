@@ -152,10 +152,10 @@ impl TokenPunctuator {
             _ => return false,
         }
     }
-    pub fn is_prefix(&self)->bool{
+    pub fn is_prefix(&self) -> bool {
         match &self {
-            TokenPunctuator::Not | TokenPunctuator::Plus| TokenPunctuator::Minus=> true,
-            _=>false
+            TokenPunctuator::Not | TokenPunctuator::Plus | TokenPunctuator::Minus => true,
+            _ => false,
         }
     }
 }
@@ -168,6 +168,8 @@ impl std::fmt::Display for TokenPunctuator {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKeyword {
     Let,    //let
+    Const,  //const
+    Var,    //var
     If,     //if
     Else,   //else
     Return, //return
@@ -186,6 +188,8 @@ impl TokenKeyword {
             TokenKeyword::If => String::from("if"),
             TokenKeyword::Else => String::from("else"),
             TokenKeyword::Return => String::from("return"),
+            TokenKeyword::Const => String::from("const"),
+            TokenKeyword::Var => String::from("var"),
         }
     }
 }
@@ -223,11 +227,19 @@ impl Token {
             self.typ, self.index, self.line, self.column
         ))
     }
-    
-    pub fn is_precedence(&self)->bool{
+
+    pub fn is_keyword(&self,key:TokenKeyword)->bool{
+        match &self.typ {
+            TokenType::Keyword(t) => {
+                return key == *t;
+            },
+            _ => false,
+        }
+    }
+    pub fn is_precedence(&self) -> bool {
         match &self.typ {
             TokenType::Punctuator(t) => t.is_precedence(),
-            _=>false
+            _ => false,
         }
     }
     pub fn is_eof(&self, is_semicolon: bool) -> bool {
@@ -248,12 +260,19 @@ impl Token {
             _ => false,
         }
     }
-    pub fn is_prefix(&self)->bool{
+    pub fn is_prefix(&self) -> bool {
         match &self.typ {
             TokenType::Punctuator(t) => t.is_prefix(),
-            _=>false
+            _ => false,
         }
     }
+    pub fn is_ident(&self) -> bool {
+        match &self.typ {
+            TokenType::Ident(t) => true,
+            _ => false,
+        }
+    }
+    
 }
 
 impl std::fmt::Display for Token {
