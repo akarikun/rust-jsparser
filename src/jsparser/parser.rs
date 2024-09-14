@@ -62,21 +62,6 @@ impl Parser {
         }
     }
 
-    fn skip_next_token_ptor(&mut self, typ: TokenPunctuator, is_skip: bool) -> bool {
-        match &self.peek_token.typ {
-            TokenType::Punctuator(t) => {
-                if typ == *t {
-                    if is_skip {
-                        self.next_token();
-                    }
-                    return true;
-                }
-                return false;
-            }
-            _ => return false,
-        }
-    }
-
     fn parse_var_slot(&mut self, typ: String) -> Vec<Option<Expr>> {
         let mut v: Vec<Option<Expr>> = Vec::new();
         self.next_token(); //skip  'var' 'let' 'const'
@@ -104,7 +89,7 @@ impl Parser {
         v
     }
 
-    ///第一层  step: 1->2 后面可能会将第一层跟第二层合并掉
+    ///第一层  step: 1->2
     fn parse_statement(&mut self) -> Vec<Expr> {
         let mut v: Vec<Expr> = Vec::new();
         loop {
@@ -130,7 +115,7 @@ impl Parser {
                             v.push(self.parse_if_slot());
                         }
                         TokenKeyword::Return => todo!(),
-                        _ => todo!(),
+                        _ => todo!("{:?}", t),
                     }
                 }
                 TokenType::Punctuator(t) => match &t {
@@ -157,14 +142,14 @@ impl Parser {
     fn parse_expression(&mut self, count: usize) -> Vec<Expr> {
         let mut v = Vec::new();
         loop {
-            if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
-                self.next_token();
+            if count > 0 && v.len() == count {
+                return v;
             }
             if self.current_token.is_eof(false) {
                 break;
             }
-            if count > 0 && v.len() == count {
-                return v;
+            if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+                self.next_token();
             }
             match &self.current_token.typ {
                 TokenType::Number(t) | TokenType::Ident(t) => {
@@ -236,7 +221,7 @@ impl Parser {
         }
         v
     }
-    ///创建新的解析,括号中的表达式使用全量扫描,(后续大概会换成原来的逐步扫描)
+    ///创建新的解析,括号中的表达式使用全量扫描
     fn new_parser(&self, v: Vec<Token>, count: usize, is_checked: bool) -> (Vec<Expr>, Parser) {
         let list: Rc<RefCell<Vec<Token>>> = Rc::new(RefCell::new(v));
         let mut parser = Parser::new(Box::new(TokenList::new(Rc::clone(&list))));
@@ -402,7 +387,7 @@ impl Parser {
         let expr = Expr::Update(ident, op, prefix);
         self.next_token(); //skip ident
         self.next_token(); //skip ++
-        self.skip_next_token_ptor(TokenPunctuator::Semicolon, true); //skip ;
+                           // self.skip_next_token_ptor(TokenPunctuator::Semicolon, true); //skip ;
         expr
     }
 
@@ -427,61 +412,88 @@ impl Parser {
         list
     }
 
+    fn parse_else_slot(&mut self) -> Expr {
+        self.next_token(); //else
+        if self.current_token.is_keyword(TokenKeyword::If){
+            return self.parse_if_slot();
+        }
+        if self.current_token.is_ptor(TokenPunctuator::LCParen) {
+            self.next_token();
+            let list: Vec<Token> =
+                    self.get_token_duration(TokenPunctuator::LCParen, TokenPunctuator::RCParen);
+                let (expr, _) = self.new_parser(list, 0, true);
+                if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                    self.next_token();
+                    return Expr::BlockStatement(expr);
+                } else {
+                    panic!("{}", self.err("Unexpected end of input"));
+                }
+        } 
+        else {
+            return  Expr::Expression(Box::new(self.parse_expression(1)[0].clone()));
+        }
+    }
     fn parse_if_slot(&mut self) -> Expr {
-        if self.peek_token.is_ptor(TokenPunctuator::LParen) {
-            self.next_token(); //skip if
+        self.next_token(); //skip if
+        if self.current_token.is_ptor(TokenPunctuator::LParen) {
             self.next_token(); //skip '('
             let list: Vec<Token> =
                 self.get_token_duration(TokenPunctuator::LParen, TokenPunctuator::RParen);
             let (condition, _) = self.new_parser(list, 1, true);
 
-            let flag = self.skip_next_token_ptor(TokenPunctuator::LCParen, true); //如有'{'就跳过
             self.next_token(); //skip ')'
-
-            let list: Vec<Token> =
-                self.get_token_duration(TokenPunctuator::LCParen, TokenPunctuator::RCParen);
-            let (expr1, _) = self.new_parser(list, 0, false);
-            if flag && self.current_token.is_ptor(TokenPunctuator::RCParen) {
+            let mut expr1 = Expr::Empty;
+            let mut expr2 = Expr::Empty;
+            let mut line = 0;
+            
+            if self.current_token.is_ptor(TokenPunctuator::LCParen) {
                 self.next_token();
-            } else {
-                panic!("{}", self.err("缺少}"));
-            }
-
-            if self.current_token.is_keyword(TokenKeyword::Else) {
-                // todo!("暂只完成if else 功能,还需要添加else if 功能");
-
-                let flag = self.skip_next_token_ptor(TokenPunctuator::LCParen, true); //
-                self.next_token(); //skip 'else'
                 let list: Vec<Token> =
                     self.get_token_duration(TokenPunctuator::LCParen, TokenPunctuator::RCParen);
-                let (expr2, _) = self.new_parser(list, 0, false);
-                if flag && self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                let (expr, _) = self.new_parser(list, 0, true);
+                if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                    println!("{:?}",expr);
                     self.next_token();
+                    expr1 = Expr::BlockStatement(expr);
                 } else {
-                    panic!("{}", self.err("缺少}"));
+                    panic!("{}", self.err("Unexpected end of input"));
                 }
-                return Expr::If(
-                    Box::new(condition[0].clone()),
-                    Box::new(Expr::BlockStatement(expr1)),
-                    Box::new(Expr::BlockStatement(expr2)),
-                );
             } else {
-                return Expr::If(
-                    Box::new(condition[0].clone()),
-                    Box::new(Expr::BlockStatement(expr1)),
-                    Box::new(Expr::Empty),
-                );
+                line = self.current_token.line;
+                let expr = self.parse_expression(1);
+                if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+                    line = 0;
+                    self.next_token();
+                }
+                expr1 = Expr::Expression(Box::new(expr[0].clone()));
             }
+            if !self.current_token.is_eof(false){
+                if self.current_token.line == line {
+                    panic!("{:?}", self.err("Unexpected token else"));
+                }
+                else{
+                    if self.current_token.is_keyword(TokenKeyword::Else) {
+                        expr2 = self.parse_else_slot();
+                    }
+                }
+            }
+            
+            return Expr::If(
+                Box::new(condition[0].clone()),
+                Box::new(expr1),
+                Box::new(expr2),
+            );
         }
-        panic!("if语句异常")
+        panic!("Unexpected end of input")
     }
     //a(
     fn parse_call_slot(&mut self, ident: String) -> Expr {
         self.next_token(); //ident
-        if self.skip_next_token_ptor(TokenPunctuator::RParen, true) {
+        self.next_token(); //(
+        if self.current_token.is_ptor(TokenPunctuator::RParen) {
             return Expr::Call(ident, Vec::new());
         }
-        self.next_token(); //(
+
         let list = self.get_token_duration(TokenPunctuator::LParen, TokenPunctuator::RParen);
         let mut args: Vec<Expr> = Vec::new();
         let (expr, mut parser) = self.new_parser(list, 1, false);

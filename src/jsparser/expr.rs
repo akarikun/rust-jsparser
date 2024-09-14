@@ -13,6 +13,7 @@ pub enum Expr {
     Variable(String, String, Box<Expr>),   //let a =
     If(Box<Expr>, Box<Expr>, Box<Expr>),   //if
     BlockStatement(Vec<Expr>),
+    Expression(Box<Expr>),
 }
 
 #[derive(Debug, Clone)]

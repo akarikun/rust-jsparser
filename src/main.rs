@@ -9,11 +9,10 @@ fn main() {
     //不支持表达式中有未定义行为如：let i=i++;
     let input = r#"
         let a = !b(1-m*n)/c&&a+2>=0||1<(-c)&&-p[-d-+c];
-        if (a==b){
+        if(a) alert(a);
+        else if(b) c=d
+        else if(c) c=d; else {
             let a=1,b,c=d;
-        }
-        else {
-            alert(2);
         }
     "#;
     let mut lexer = Lexer::new(String::from(input));
