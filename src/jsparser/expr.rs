@@ -3,17 +3,18 @@ pub enum Expr {
     Empty,              //base
     Unexpected(String), //异常
     Identifier(String),
-    Number(i64),
+    Number(f64),
     Assignment(String, Box<Expr>),
     Prefix(Prefix, Box<Expr>),             // !a  -1
-    Call(String, Vec<Expr>),               // a()
+    Call(Box<Expr>, Vec<Expr>),            // a()  a.b()
     Member(String, Vec<Expr>),             // a[]
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
-    Update(String, Operator, bool),        //a++/++a     bool:存放++的前后位置
+    Update(Box<Expr>, Operator, bool),     //a++/++a     bool:存放++的前后位置
     Variable(String, String, Box<Expr>),   //let a =
     If(Box<Expr>, Box<Expr>, Box<Expr>),   //if
     BlockStatement(Vec<Expr>),
     Expression(Box<Expr>),
+    Return(Box<Expr>),
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +45,7 @@ pub enum Operator {
     BitXor,
     BitAnd,
     INC,
+    DEC,
 }
 
 #[derive(Debug)]
@@ -52,7 +54,7 @@ pub struct Program {
 }
 
 impl Expr {
-    pub fn calc(&self) -> Option<i64> {
+    pub fn calc(&self) -> Option<f64> {
         match &self {
             Expr::Number(val) => return Some(*val),
             Expr::Infix(left, op, right) => {

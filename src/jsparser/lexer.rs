@@ -313,7 +313,7 @@ impl ILexer for Lexer {
                     }
                 }
             }
-            Some('$') => {
+            Some('$') | Some('_') => {
                 let (ident, line) = self.read_identifier();
                 Token::new(TokenType::Ident(ident), self.line, self.column)
             }
@@ -427,7 +427,7 @@ impl Lexer {
         let mut result = String::new();
         let line = self.line;
         while let Some(ch) = self.ch {
-            if ch.is_digit(10) {
+            if ch.is_digit(10)||ch=='.' {
                 result.push(ch);
                 self.read_char();
             } else {
@@ -441,7 +441,7 @@ impl Lexer {
         let mut result = String::new();
         let line = self.line;
         while let Some(ch) = self.ch {
-            if ch == '$' || ch.is_alphabetic() || ch.is_digit(10) {
+            if ch == '$' || ch == '_' || ch.is_alphabetic() || ch.is_digit(10) {
                 result.push(ch);
                 self.read_char();
             } else {

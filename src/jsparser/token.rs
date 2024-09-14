@@ -272,7 +272,12 @@ impl Token {
             _ => false,
         }
     }
-    
+    pub fn is_num(&self) -> bool {
+        match &self.typ {
+            TokenType::Number(t) => true,
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Token {
