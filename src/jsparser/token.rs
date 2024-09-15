@@ -130,7 +130,7 @@ impl TokenPunctuator {
             TokenPunctuator::LTE => String::from("<="),
             TokenPunctuator::NE => String::from("!="),
             TokenPunctuator::LShift => String::from("<<"),
-            TokenPunctuator::RShift => String::from(">>"),
+            TokenPunctuator::RShift => String::from(">>")
         }
     }
     pub fn is_precedence(&self) -> bool {
@@ -167,12 +167,21 @@ impl std::fmt::Display for TokenPunctuator {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKeyword {
+    None,
+
     Let,    //let
     Const,  //const
     Var,    //var
     If,     //if
     Else,   //else
     Return, //return
+    For,    //for
+    In,     //in
+    Of,     //of
+    Break,  //break
+    Delete, //delete
+    Do,     //do
+    Swith,  //switch
 }
 impl std::fmt::Display for TokenKeyword {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -188,8 +197,16 @@ impl TokenKeyword {
             TokenKeyword::If => String::from("if"),
             TokenKeyword::Else => String::from("else"),
             TokenKeyword::Return => String::from("return"),
+            TokenKeyword::Break => String::from("break"),
             TokenKeyword::Const => String::from("const"),
             TokenKeyword::Var => String::from("var"),
+            TokenKeyword::For => String::from("for"),
+            TokenKeyword::Do => String::from("do"),
+            TokenKeyword::Swith => String::from("switch"),
+            TokenKeyword::In => String::from("in"),
+            TokenKeyword::Of => String::from("of"),
+            TokenKeyword::Delete => String::from("delete"),
+            TokenKeyword::None => String::from(""),
         }
     }
 }
@@ -228,11 +245,11 @@ impl Token {
         ))
     }
 
-    pub fn is_keyword(&self,key:TokenKeyword)->bool{
+    pub fn is_keyword(&self, key: TokenKeyword) -> bool {
         match &self.typ {
             TokenType::Keyword(t) => {
                 return key == *t;
-            },
+            }
             _ => false,
         }
     }
@@ -277,6 +294,9 @@ impl Token {
             TokenType::Number(t) => true,
             _ => false,
         }
+    }
+    pub fn is_ident_or_num(&self) -> bool {
+        self.is_ident() && self.is_num()
     }
 }
 

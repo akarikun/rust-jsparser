@@ -5,9 +5,12 @@ pub enum Expr {
     Identifier(String),
     Number(f64),
     Assignment(String, Box<Expr>),
-    Prefix(Prefix, Box<Expr>),             // !a  -1
-    Call(Box<Expr>, Vec<Expr>),            // a()  a.b()
-    Member(String, Vec<Expr>),             // a[]
+    Prefix(Prefix, Box<Expr>),  // !a  -1
+    Call(Box<Expr>, Vec<Expr>), // a()  a.b()
+
+    Member(Box<Expr>, Box<Expr>),             //a.b a[b]
+    Sequence(Vec<Expr>),                      // a[1,2,3,4]
+
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
     Update(Box<Expr>, Operator, bool),     //a++/++a     bool:存放++的前后位置
     Variable(String, String, Box<Expr>),   //let a =
@@ -15,6 +18,9 @@ pub enum Expr {
     BlockStatement(Vec<Expr>),
     Expression(Box<Expr>),
     Return(Box<Expr>),
+    For(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>), //for
+    ForIn(Box<Expr>, Box<Expr>),                     //for in
+    ForOf(Box<Expr>, Box<Expr>),                     //for of
 }
 
 #[derive(Debug, Clone)]
@@ -24,7 +30,7 @@ pub enum Prefix {
     Not,    // !
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,PartialEq)]
 pub enum Operator {
     Plus,
     Minus,
@@ -46,6 +52,9 @@ pub enum Operator {
     BitAnd,
     INC,
     DEC,
+
+    In,
+    Of,
 }
 
 #[derive(Debug)]

@@ -125,15 +125,11 @@ impl ILexer for Lexer {
             Some('*') => {
                 //  */
                 let pc = self.peek_char();
-                if pc == Some('/') {
-                    todo!()
-                } else {
-                    Token::new(
-                        TokenType::Punctuator(TokenPunctuator::Multiply),
-                        self.line,
-                        self.column,
-                    )
-                }
+                Token::new(
+                    TokenType::Punctuator(TokenPunctuator::Multiply),
+                    self.line,
+                    self.column,
+                )
             }
             Some('/') => {
                 //注释或者是除号
@@ -291,6 +287,20 @@ impl ILexer for Lexer {
                             self.column,
                         );
                     }
+                    "const" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Const),
+                            line,
+                            self.column,
+                        );
+                    }
+                    "var" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Var),
+                            line,
+                            self.column,
+                        );
+                    }
                     "if" => {
                         return Token::new(TokenType::Keyword(TokenKeyword::If), line, self.column)
                     }
@@ -304,6 +314,55 @@ impl ILexer for Lexer {
                     "return" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Return),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "break" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Break),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "for" =>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::For),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "in" =>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::In),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "of" =>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Of),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "delete" =>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Delete),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "do" =>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Do),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "switch" =>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Swith),
                             line,
                             self.column,
                         )
