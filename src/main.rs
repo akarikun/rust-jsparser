@@ -12,18 +12,20 @@ fn main() {
     a[b,c][d];
     a[b][c,d];
     a.b.c.d;
-    let a=1+2*3;
+    let a=1+2*3
     alert(1);
     if(a<100){
         for(let i=0;i<100;i++){}
     }
     else if(a==100){
+        alert(2)
         for(;;){};
     }
     else{
          for(let a in arr){};
     }   
     for(let a of arr){}
+   
     "#;
     let mut lexer = Lexer::new(String::from(input));
     lexer.print();

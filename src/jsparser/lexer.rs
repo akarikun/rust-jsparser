@@ -222,6 +222,42 @@ impl ILexer for Lexer {
                 self.line,
                 self.column,
             ),
+            Some('"') => {
+                // let typ = if self.ch == Some('"') { true } else { false };
+                let mut result = String::new();
+                let line = self.line;
+                while let Some(ch) = self.ch {
+                    result.push(ch);
+                    self.read_char();
+                    if self.ch == Some('"') {
+                        result.push(self.ch.unwrap());
+                        self.read_char();
+                        break;
+                    }
+                }
+                return Token::new(
+                    TokenType::Literal(result, "".to_string()),
+                    line,
+                    self.column,
+                );
+            }
+            Some('`') => {
+                let mut result = String::new();
+                let line = self.line;
+                while let Some(ch) = self.ch {
+                    if ch != '`' {
+                        result.push(ch);
+                        self.read_char();
+                    } else {
+                        break;
+                    }
+                }
+                return Token::new(
+                    TokenType::Literal(result, "".to_string()),
+                    line,
+                    self.column,
+                );
+            }
             Some('&') => {
                 let pc = self.peek_char();
                 if pc == Some('&') {
@@ -325,42 +361,26 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
-                    "for" =>{
-                        return Token::new(
-                            TokenType::Keyword(TokenKeyword::For),
-                            line,
-                            self.column,
-                        )
+                    "for" => {
+                        return Token::new(TokenType::Keyword(TokenKeyword::For), line, self.column)
                     }
-                    "in" =>{
-                        return Token::new(
-                            TokenType::Keyword(TokenKeyword::In),
-                            line,
-                            self.column,
-                        )
+                    "in" => {
+                        return Token::new(TokenType::Keyword(TokenKeyword::In), line, self.column)
                     }
-                    "of" =>{
-                        return Token::new(
-                            TokenType::Keyword(TokenKeyword::Of),
-                            line,
-                            self.column,
-                        )
+                    "of" => {
+                        return Token::new(TokenType::Keyword(TokenKeyword::Of), line, self.column)
                     }
-                    "delete" =>{
+                    "delete" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Delete),
                             line,
                             self.column,
                         )
                     }
-                    "do" =>{
-                        return Token::new(
-                            TokenType::Keyword(TokenKeyword::Do),
-                            line,
-                            self.column,
-                        )
+                    "do" => {
+                        return Token::new(TokenType::Keyword(TokenKeyword::Do), line, self.column)
                     }
-                    "switch" =>{
+                    "switch" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Swith),
                             line,
@@ -486,7 +506,7 @@ impl Lexer {
         let mut result = String::new();
         let line = self.line;
         while let Some(ch) = self.ch {
-            if ch.is_digit(10)||ch=='.' {
+            if ch.is_digit(10) || ch == '.' {
                 result.push(ch);
                 self.read_char();
             } else {

@@ -4,6 +4,8 @@ use std::fmt;
 pub enum TokenType {
     Illegal,
     EOF,
+    Literal(String,String),
+    TemplateLiteral(String,String),
     Ident(String),
     Number(String),
     Punctuator(TokenPunctuator),
@@ -18,6 +20,8 @@ impl TokenType {
             TokenType::Number(t) => t.to_string(),
             TokenType::Punctuator(t) => t.to_raw(),
             TokenType::Keyword(t) => t.to_raw(),
+            TokenType::Literal(t,t2) => t.to_string(),
+            TokenType::TemplateLiteral(t,t2) => t.to_string(),
         }
     }
 }
@@ -245,6 +249,14 @@ impl Token {
         ))
     }
 
+    pub fn checked_keyword(&self) -> bool {
+        match &self.typ {
+            TokenType::Keyword(t) => {
+                return true;
+            }
+            _ => false,
+        }
+    }
     pub fn is_keyword(&self, key: TokenKeyword) -> bool {
         match &self.typ {
             TokenType::Keyword(t) => {
@@ -309,6 +321,8 @@ impl std::fmt::Display for Token {
             TokenType::Number(t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
             TokenType::Punctuator(t) => write!(f, "<\x1b[36m{}\x1b[39m> ", t.to_raw()),
             TokenType::Keyword(t) => write!(f, "<key:\x1b[33m{}\x1b[39m> ", t),
+            TokenType::Literal(t,t2) => write!(f, "<lit:\x1b[33m{}\x1b[39m> ", t),
+            TokenType::TemplateLiteral(t,t2) => write!(f, "<temp:\x1b[33m{}\x1b[39m> ", t),
         }
     }
 }

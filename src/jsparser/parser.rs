@@ -79,6 +79,7 @@ impl Parser {
             self.next_token(); //skip  'var' 'let' 'const'
         }
 
+        let mut line =self.current_token.line;
         while !self.current_token.is_eof(false) {
             // if !self.current_token.is_ident() {
             //     panic!("{}", self.err("脚本异常"));
@@ -110,11 +111,9 @@ impl Parser {
                     Expr::Identifier(_) => {
                         v.push(Some(Expr::Expression(Box::new(Expr::Empty))));
                     }
-                    Expr::Assignment(_, exp) => {
-                        v.push(Some(Expr::Expression(exp.clone())));
-                    }
                     Expr::Infix(_, _, _) | Expr::Update(_, _, _) => v.push(Some(expr)),
                     _ => {
+                        println!("{:?}",&expr);
                         v.push(Some(Expr::Expression(Box::new(expr))));
                     }
                 };
@@ -124,6 +123,8 @@ impl Parser {
                 self.next_token(); //skip ','
             } else if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
                 self.next_token();
+                break;
+            } else {
                 break;
             }
         }
@@ -205,7 +206,10 @@ impl Parser {
                         TokenPunctuator::INC => self.parse_update_slot(ident, Operator::INC, false),
                         TokenPunctuator::LParen
                         | TokenPunctuator::LSParen
-                        | TokenPunctuator::Dot => action(self),
+                        | TokenPunctuator::Dot => {
+                            let expr = action(self);
+                            return expr;
+                        },
                         TokenPunctuator::Comma => ident_num_action(),
                         TokenPunctuator::Semicolon => {
                             self.next_token(); //ident
@@ -261,6 +265,7 @@ impl Parser {
                 v.push(Expr::Empty);
                 continue;
             }
+            //统一在allow最后判断做扫尾操作，有特殊处理的需要及时处理扫尾
             let mut allow = false;
             match &self.current_token.typ {
                 TokenType::Number(t) | TokenType::Ident(t) => {
@@ -270,6 +275,7 @@ impl Parser {
                         } else {
                             v.push(Expr::Number(t.clone().parse::<f64>().unwrap()))
                         }
+                        self.next_token();
                         continue;
                     }
                     if self.peek_token.is_ptor(TokenPunctuator::MOV) {
@@ -280,29 +286,6 @@ impl Parser {
                     } else if self.peek_token.is_ptor(TokenPunctuator::INC) {
                         v.push(self.parse_ident_num(self.peek_token.clone().raw));
                     }
-                    // else if self.peek_token.is_keyword(TokenKeyword::In) {
-                    //     let ident = self.next_token().raw; //ident
-                    //     self.next_token(); //in
-                    //     let expr = self.parse_base_expression(Precedence::Lowest);
-                    //     v.push(Expr::Infix(
-                    //         Box::new(Expr::Identifier(ident)),
-                    //         Operator::In,
-                    //         Box::new(expr),
-                    //     ));
-                    //     self.next_token();
-                    //     continue;
-                    // } else if self.peek_token.is_keyword(TokenKeyword::Of) {
-                    //     let ident = self.next_token().raw; //ident
-                    //     self.next_token(); //in
-                    //     let expr = self.parse_base_expression(Precedence::Lowest);
-                    //     v.push(Expr::Infix(
-                    //         Box::new(Expr::Identifier(ident)),
-                    //         Operator::Of,
-                    //         Box::new(expr),
-                    //     ));
-                    //     self.next_token();
-                    //     continue;
-                    // }
                     else {
                         allow = true;
                     }
@@ -334,11 +317,19 @@ impl Parser {
                 },
                 _ => todo!("{:?}", self.current_token.typ),
             }
+             
             if allow {
                 v.push(self.parse_base_expression(Precedence::Lowest));
+                let mut line =self.current_token.line;
                 if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+                    line = 0;
+                }
+                if self.peek_token.checked_keyword(){
+                    if self.peek_token.line == line {
+                        panic!("{}",self.err("Unexpected token"));
+                    }
                     self.next_token();
-                    break;
+                    return v;
                 }
             }
             self.next_token();
@@ -452,10 +443,17 @@ impl Parser {
                 todo!("{:?}", &self.current_token.typ)
             }
         };
-        if self.peek_token.is_eof(false) {
+
+        //在这里判断下 peek_token
+        if self.peek_token.is_eof(true) {
+            self.next_token();
             return left;
         }
-        if self.peek_token.is_ptor(TokenPunctuator::Semicolon) {
+        if self.peek_token.checked_keyword(){
+            // self.next_token();
+            return left;
+        }
+        if self.peek_token.is_ptor(TokenPunctuator::Comma){
             self.next_token();
             return left;
         }
@@ -734,6 +732,9 @@ impl Parser {
             let exprs = parser.parse_base_expression(Precedence::Lowest);
             args.push(exprs.clone());
         }
+        if !self.current_token.is_ptor(TokenPunctuator::RParen){
+            panic!("{}",self.err("Unexpected end of input"))
+        }
         Expr::Call(Box::new(Expr::Identifier(ident)), args)
     }
     //a[   a.
@@ -745,7 +746,6 @@ impl Parser {
                 //a.b
                 self.next_token(); //skipt '.'
                 if self.current_token.is_ident() {
-                    //a.b[  b[
                     let member = self.current_token.raw.clone();
                     let expr = self.parse_member_slot(member);
                     let mem = Expr::Member(Box::new(Expr::Identifier(ident)), Box::new(expr));
@@ -763,10 +763,11 @@ impl Parser {
                 self.next_token(); //[
                 let list =
                     self.get_token_duration(TokenPunctuator::LSParen, TokenPunctuator::RSParen);
-                let (expr, mut parser) = self.new_parser(list, 1, false);
-                args.push(expr[0].clone());
-                self.next_token(); // ]
-                while parser.current_token.is_ptor(TokenPunctuator::Comma) {
+                let (expr, mut parser) = self.new_parser(list, 0, false);
+                for i in expr{
+                    args.push(i);
+                }
+                while parser.peek_token.is_ptor(TokenPunctuator::Comma) {
                     parser.next_token(); //skip ','
                     let exprs = parser.parse_base_expression(Precedence::Lowest);
                     args.push(exprs);
@@ -776,11 +777,23 @@ impl Parser {
                 } else {
                     mem = Expr::Member(Box::new(mem), Box::new(args[0].clone()));
                 }
+                if self.peek_token.is_ptor(TokenPunctuator::LSParen){
+                    if self.current_token.is_ptor(TokenPunctuator::RSParen){
+                        self.next_token();
+                    }
+                }
+            }
+            if !self.current_token.is_ptor(TokenPunctuator::RSParen){
+                panic!("{}",self.err("Unexpected end of input"))
             }
             return mem;
         } else {
             Expr::Identifier(ident)
         }
+    }
+    //这里还要处理多级 如: a()[1]  a[1]()    a[1]()[1]()...
+    fn parse_call_or_member()->Expr{
+        Expr::Empty
     }
 }
 
