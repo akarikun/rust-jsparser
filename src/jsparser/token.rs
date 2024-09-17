@@ -72,6 +72,9 @@ pub enum TokenPunctuator {
     LTE, // <=
     /// !=
     NE, // !=
+
+    /// 虽然js 还有 <<< >>> ,但是目前并打算加入
+
     /// <<
     LShift, //<<
     /// \>>
@@ -156,9 +159,9 @@ impl TokenPunctuator {
             _ => return false,
         }
     }
-    pub fn is_prefix(&self) -> bool {
+    pub fn is_unary(&self) -> bool {
         match &self {
-            TokenPunctuator::Not | TokenPunctuator::Plus | TokenPunctuator::Minus => true,
+            TokenPunctuator::BitNot | TokenPunctuator::Not | TokenPunctuator::Plus | TokenPunctuator::Minus => true,
             _ => false,
         }
     }
@@ -271,6 +274,42 @@ impl Token {
             _ => false,
         }
     }
+    pub fn is_binary(&self)->bool{
+        match &self.typ {
+            TokenType::Punctuator(t) =>{               
+                match &t {
+                    TokenPunctuator::Equal | TokenPunctuator::Congruent
+                 |TokenPunctuator::GT|TokenPunctuator::GTE|TokenPunctuator::LT|
+                 TokenPunctuator::LTE|TokenPunctuator::NE|TokenPunctuator::LShift|
+                 TokenPunctuator::RShift => true,
+                    _=>false,
+                }
+            },
+            _ => false,
+        }
+    }
+    pub fn is_logical(&self)->bool{
+        match &self.typ {
+            TokenType::Punctuator(t) =>{
+                match &t {
+                    TokenPunctuator::And | TokenPunctuator::Or => true,
+                    _=>false,
+                }
+            },
+            _ => false,
+        }
+    }
+    pub fn is_update(&self)->bool{
+        match &self.typ {
+            TokenType::Punctuator(t) => {
+                match &t{
+                    TokenPunctuator::INC|TokenPunctuator::DEC => true,
+                    _=>false
+                }
+            }
+            _ => false,
+        }
+    }
     pub fn is_eof(&self, is_semicolon: bool) -> bool {
         match &self.typ {
             TokenType::EOF => true,
@@ -289,9 +328,9 @@ impl Token {
             _ => false,
         }
     }
-    pub fn is_prefix(&self) -> bool {
+    pub fn is_unary(&self) -> bool {
         match &self.typ {
-            TokenType::Punctuator(t) => t.is_prefix(),
+            TokenType::Punctuator(t) => t.is_unary(),
             _ => false,
         }
     }
@@ -308,7 +347,7 @@ impl Token {
         }
     }
     pub fn is_ident_or_num(&self) -> bool {
-        self.is_ident() && self.is_num()
+        self.is_ident() || self.is_num()
     }
 }
 

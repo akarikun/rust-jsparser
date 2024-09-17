@@ -9,24 +9,19 @@ fn main() {
     //不打算支持表达式中有未定义行为如：let i=i++;
     //最好每个语句最后结尾使用;结束
     let input = r#"
-    a[b,c][d];
-    a[b][c,d];
-    a.b.c.d;
-    let a=1+2*3
-    alert(1);
-    if(a<100){
-        for(let i=0;i<100;i++){}
-    }
-    else if(a==100){
-        alert(2)
-        for(;;){};
-    }
-    else{
-         for(let a in arr){};
-    }   
+    let bbb=~!~!~a()[1]()[1,2,3](11,22,33)[3](2)[1][1](2)[3].s,
+    bb=1
+    ss,
+    a=b;
+    s
+    s2
+    a++;
+    if(a==b) a++; else { let c=d; } 
+    if(a==b){}else a+b; let a=c;
+    for(let a=0;a<10;a++) a++;
     for(let a of arr){}
-   
-    "#;
+    for(let a in arr){ a++; }
+"#;
     let mut lexer = Lexer::new(String::from(input));
     lexer.print();
 

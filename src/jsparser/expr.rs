@@ -1,10 +1,11 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Empty,              //base
+    Unary(Unary,Box<Expr>),
     Unexpected(String), //异常
     Identifier(String),
     Number(f64),
-    Assignment(String, Box<Expr>),
+    Assignment(String, Box<Expr>), // a=b
     Prefix(Prefix, Box<Expr>),  // !a  -1
     Call(Box<Expr>, Vec<Expr>), // a()  a.b()
 
@@ -12,8 +13,8 @@ pub enum Expr {
     Sequence(Vec<Expr>),                      // a[1,2,3,4]
 
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
-    Update(Box<Expr>, Operator, bool),     //a++/++a     bool:存放++的前后位置
-    Variable(String, String, Box<Expr>),   //let a =
+    Update(Box<Expr>, String, bool),     //a++/++a     bool:存放++的前后位置
+    Variable(Variable, String, Box<Expr>),   //let a =
     If(Box<Expr>, Box<Expr>, Box<Expr>),   //if
     BlockStatement(Vec<Expr>),
     Expression(Box<Expr>),
@@ -22,8 +23,25 @@ pub enum Expr {
     ForIn(Box<Expr>, Box<Expr>),                     //for in
     ForOf(Box<Expr>, Box<Expr>),                     //for of
 }
+#[derive(Debug, Clone,PartialEq)]
+pub enum Variable{
+    Var,
+    Let,
+    Const,
+}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,PartialEq)]
+pub enum Unary{
+    /// !
+    Not,
+    /// +
+    Plus,
+    /// -
+    Minus,
+    /// ~
+    BitNot,
+}
+#[derive(Debug, Clone,PartialEq)]
 pub enum Prefix {
     Negate, // -expr
     Abs,    // +a
