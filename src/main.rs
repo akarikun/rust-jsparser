@@ -6,7 +6,9 @@ fn main() {
     //不打算支持表达式中有未定义行为如：let i=i++;
     //最好每个语句最后结尾使用;结束
     let input = r#"
-   print(1*2*3-4/2);
+    print(1*2*3-4/2);
+    if(1==2){ print(1); } else{ print(2); }
+    if(1==1){ print(3); } else{ print(4); }
 "#;
     let mut lexer = Lexer::new(String::from(input));
     lexer.print();
@@ -19,5 +21,5 @@ fn main() {
             println!("register_method:print=> {:?}", args);
         }),
     );
-    program.eval(true);
+    program.eval(false,Vec::new());
 }

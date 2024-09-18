@@ -104,7 +104,7 @@ impl Parser {
                 v.push(Expr::Empty);
             }
             if self.current_token.is_num() {
-                let expr = self.parse_base_analyze();
+                let expr = self.base_analyze();
                 v.push(expr);
                 if self.current_token.is_ptor(TokenPunctuator::Comma) {
                     self.next_token();
@@ -118,7 +118,7 @@ impl Parser {
                     }
                     skip_semicolon(self);
                 } else {
-                    let expr = self.parse_base_analyze();
+                    let expr = self.base_analyze();
                     v.push(expr);
                     if self.current_token.is_ptor(TokenPunctuator::Comma) {
                         self.next_token();
@@ -264,7 +264,7 @@ impl Parser {
             }
             self.next_token();
             // let last_line = self.current_token.line;
-            let expr = self.parse_base_analyze();
+            let expr = self.base_analyze();
             v.push(Expr::Assignment(token.raw.clone(), Box::new(expr)));
             if self.current_token.is_ptor(TokenPunctuator::Comma) {
                 if self.peek_token.checked_keyword() {
@@ -633,7 +633,7 @@ impl Parser {
                     }
                 }
             } else if self.current_token.is_ptor(TokenPunctuator::LParen) {
-                let expr = self.parse_base_analyze();
+                let expr = self.base_analyze();
                 *left = Expr::Infix(
                     Box::new(left.clone()),
                     self.get_operator(&op),
@@ -647,7 +647,7 @@ impl Parser {
                     || self.peek_token.is_ptor(TokenPunctuator::LSParen)
                     || self.peek_token.is_ptor(TokenPunctuator::Dot)
                 {
-                    let expr = self.parse_base_analyze();
+                    let expr = self.base_analyze();
                     *left = Expr::Infix(
                         Box::new(left.clone()),
                         self.get_operator(&op),
@@ -662,7 +662,7 @@ impl Parser {
         left.clone()
     }
     //解析基础语法，遇到 ; 或 关键字结束
-    fn parse_base_analyze(&mut self) -> Expr {
+    fn base_analyze(&mut self) -> Expr {
         let parse_unary = |p: &mut Self| -> Unary {
             let token = p.next_token();
             match token.typ {
@@ -696,7 +696,7 @@ impl Parser {
         }
         if self.current_token.is_unary() {
             let unary = parse_unary(self);
-            let expr = self.parse_base_analyze();
+            let expr = self.base_analyze();
             return self.parser_infix(&mut Expr::Unary(unary, Box::new(expr)), Precedence::Lowest);
         }
         if self.current_token.is_ptor(TokenPunctuator::LParen) {
@@ -747,20 +747,20 @@ impl IParse for Parser {
                 TokenPunctuator::Minus => Operator::Minus,
                 TokenPunctuator::Multiply => Operator::Multiply,
                 TokenPunctuator::Divide => Operator::Divide,
-                // TokenPunctuator::Or => Operator::Or,
-                // TokenPunctuator::And => Operator::And,
-                // TokenPunctuator::Not => Operator::Not,
-                // TokenPunctuator::LShift => Operator::LShift,
-                // TokenPunctuator::RShift => Operator::RShift,
-                // TokenPunctuator::Equal => Operator::Equal,
-                // TokenPunctuator::NE => Operator::NE,
-                // TokenPunctuator::GT => Operator::GT,
-                // TokenPunctuator::GTE => Operator::GTE,
-                // TokenPunctuator::LT => Operator::LT,
-                // TokenPunctuator::LTE => Operator::LTE,
-                // TokenPunctuator::BitOr => Operator::BitOr,
-                // TokenPunctuator::BitXor => Operator::BitXor,
-                // TokenPunctuator::BitAnd => Operator::BitAnd,
+                TokenPunctuator::Or => Operator::Or,
+                TokenPunctuator::And => Operator::And,
+                TokenPunctuator::Not => Operator::Not,
+                TokenPunctuator::LShift => Operator::LShift,
+                TokenPunctuator::RShift => Operator::RShift,
+                TokenPunctuator::Equal => Operator::Equal,
+                TokenPunctuator::NE => Operator::NE,
+                TokenPunctuator::GT => Operator::GT,
+                TokenPunctuator::GTE => Operator::GTE,
+                TokenPunctuator::LT => Operator::LT,
+                TokenPunctuator::LTE => Operator::LTE,
+                TokenPunctuator::BitOr => Operator::BitOr,
+                TokenPunctuator::BitXor => Operator::BitXor,
+                TokenPunctuator::BitAnd => Operator::BitAnd,
                 _ => unreachable!(),
             },
             _ => unreachable!(),

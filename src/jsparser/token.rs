@@ -225,35 +225,26 @@ impl TokenKeyword {
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    pub raw: String,  //便于调试
-    pub index: usize, //token的序号
-
+    pub raw: String,
     pub typ: TokenType, //token类型
     pub line: usize,    //行
     pub column: usize,  //列
 }
 
-static mut TOEKN_INDEX: usize = 0;
 impl Token {
     pub fn new(typ: TokenType, line: usize, column: usize) -> Token {
-        let mut index = 0;
-        unsafe {
-            TOEKN_INDEX = TOEKN_INDEX + 1;
-            index = TOEKN_INDEX;
-        }
         let raw = typ.to_raw();
         Token {
             typ,
             line,
             column,
-            index: index,
             raw,
         }
     }
     pub fn desc(&self) -> String {
         String::from(format!(
-            "{:?},index:{},line:{},column:{}",
-            self.typ, self.index, self.line, self.column
+            "{:?},line:{},column:{}",
+            self.typ, self.line, self.column
         ))
     }
 

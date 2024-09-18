@@ -59,47 +59,23 @@ pub enum Operator {
     Minus,
     Multiply,
     Divide,
-    // Or,
-    // And,
-    // Not,
-    // LShift,
-    // RShift,
-    // Equal,
-    // NE,
-    // GT,
-    // GTE,
-    // LT,
-    // LTE,
-    // BitOr,
-    // BitXor,
-    // BitAnd,
-    // INC,
-    // DEC,
+    Or,
+    And,
+    Not,
+    LShift,
+    RShift,
+    Equal,
+    NE,
+    GT,
+    GTE,
+    LT,
+    LTE,
+    BitOr,
+    BitXor,
+    BitAnd,
+    INC,
+    DEC,
 
     // In,
     // Of,
 }
-
-impl Expr {
-    pub fn calc(&self) -> Option<f64> {
-        match &self {
-            Expr::Number(val) => return Some(*val),
-            Expr::Infix(left, op, right) => {
-                let left_val = left.calc()?;
-                let right_val = right.calc()?;
-                match &op {
-                    Operator::Plus => return Some(left_val + right_val),
-                    Operator::Minus => return Some(left_val - right_val),
-                    Operator::Multiply => return Some(left_val * right_val),
-                    Operator::Divide => return Some(left_val / right_val),
-                    _ => todo!(),
-                };
-            }
-            _ => {
-                println!("expr calc => {:?}", &self);
-                todo!()
-            }
-        }
-    }
-}
-
