@@ -1,8 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{
-    expr::{Expr, Operator, Prefix, Program, Unary, Variable},
+    expr::{Expr, Operator, Prefix, Unary, Variable},
     lexer::{ILexer, TokenList},
+    program::Program,
     token::{Token, TokenKeyword, TokenPunctuator, TokenType},
 };
 
@@ -24,87 +25,60 @@ impl Parser {
         parser
     }
 
-    fn log(&self) {
-        crate::println(
-            31,
-            "log",
-            format!(
-                "<{}>,\n     <{}>",
-                &self.current_token.desc(),
-                &self.peek_token.desc()
-            ),
-        );
-    }
-
-    fn err(&self, str: &str) -> String {
-        format!("{},token:{}", str, self.current_token.desc())
-    }
-
-    fn next_token(&mut self) -> Token {
-        let token = self.current_token.clone();
-        self.current_token = std::mem::replace(&mut self.peek_token, self.lexer.next_token());
-        token
-    }
     pub fn parse_program(&mut self) -> Program {
-        let mut statements: Vec<Expr> = Vec::new();
-        while self.current_token.typ != TokenType::EOF {
-            for expr in self.parse_statement(0, true) {
-                if let Expr::Unexpected(msg) = expr {
-                    crate::println(31, "Uncaught SyntaxError: Unexpected token", msg.clone());
-                } else {
-                    statements.push(expr.clone());
-                }
-            }
-            self.next_token();
-        }
+        let statements = self.filter_statement();
         Program {
             statements: statements,
+            call_map: HashMap::new(),
         }
     }
 
-    /// a = 1;   a=1;
-    fn parse_mov_slot(&mut self) -> Vec<Expr> {
-        let mut v: Vec<Expr> = Vec::new();
-        loop {
-            if self.current_token.is_eof(true) {
-               break;
+    //这里还会过滤一次里层
+    fn filter_statement(&mut self) -> Vec<Expr> {
+        let set_seq = |seq: &mut Vec<Expr>, statements: &mut Vec<Expr>| {
+            let len = seq.len();
+            if len == 1 {
+                statements.push(seq.last().unwrap().clone());
+            } else if len > 0 {
+                statements.push(Expr::Sequence(seq.clone()));
+                *seq = Vec::new();
             }
-            if self.current_token.checked_keyword() {
-                break;
-            }
-            let token = self.next_token(); //a
-            let mov = self.next_token(); //b
-            if mov.is_eof(true) {
-                //let a=b,d;
-                v.push(Expr::Assignment(token.raw.clone(), Box::new(Expr::Empty)));
-                break;
-            }
-            if mov.is_ptor(TokenPunctuator::Comma) {
-                v.push(Expr::Assignment(token.raw.clone(), Box::new(Expr::Empty)));
-                continue;
-            }
-            // let last_line = self.current_token.line;
-            let expr = self.parse_base_analyze();
-            v.push(Expr::Assignment(token.raw.clone(), Box::new(expr)));
-            if self.current_token.is_ptor(TokenPunctuator::Comma) {
-                if self.peek_token.checked_keyword() {
-                    panic!("{}", self.err("Unexpected token"))
+        };
+        let mut statements: Vec<Expr> = Vec::new();
+        let mut seq: Vec<Expr> = Vec::new();
+        while self.current_token.typ != TokenType::EOF {
+            for expr in self.parse_statement(0, true) {
+                if let Expr::Number(_) = expr {
+                    seq.push(expr.clone());
+                    continue;
                 }
-                self.next_token();
-                if self.current_token.is_eof(true) {
-                    panic!("{}", self.err("Unexpected token"))
+                if let Expr::Identifier(_) = expr {
+                    seq.push(expr.clone());
+                    continue;
                 }
-                if self.peek_token.is_ident_or_num() && self.current_token.line != self.peek_token.line{
-                    v.push(Expr::Assignment(self.current_token.raw.clone(), Box::new(Expr::Empty)));
-                    self.next_token();
-                    break;
+                set_seq(&mut seq, &mut statements);
+                match expr {
+                    Expr::Empty | Expr::Identifier(_) | Expr::Number(_) => {}
+                    Expr::Unexpected(msg) => {
+                        self.println(
+                            31,
+                            format!("Uncaught SyntaxError: Unexpected token {}", msg),
+                        );
+                    }
+                    Expr::Return(_) | Expr::Break | Expr::Continue => {
+                        self.println(31, format!("Illegal {:?} statement", expr));
+                    }
+                    _ => {
+                        statements.push(expr.clone());
+                    }
                 }
             }
+            set_seq(&mut seq, &mut statements);
         }
-        // dbg!(&v);
-        v
+        statements
     }
-    ///最外层，从这里开始解析
+
+    ///里层，从这里开始解析(核心)
     fn parse_statement(&mut self, count: usize, is_skip_semicolon: bool) -> Vec<Expr> {
         //是否需要跳过 ';' if for 只有一行时不需要处理
         let skip_semicolon = |p: &mut Self| {
@@ -120,7 +94,7 @@ impl Parser {
         let mut v: Vec<Expr> = Vec::new();
         loop {
             if count > 0 && v.len() == count {
-                return v;
+                break;
             }
             if self.current_token.is_eof(false) {
                 break;
@@ -132,6 +106,10 @@ impl Parser {
             if self.current_token.is_num() {
                 let expr = self.parse_base_analyze();
                 v.push(expr);
+                if self.current_token.is_ptor(TokenPunctuator::Comma) {
+                    self.next_token();
+                    continue;
+                }
                 skip_semicolon(self);
             } else if self.current_token.is_ident() {
                 if self.peek_token.is_ptor(TokenPunctuator::MOV) {
@@ -142,6 +120,10 @@ impl Parser {
                 } else {
                     let expr = self.parse_base_analyze();
                     v.push(expr);
+                    if self.current_token.is_ptor(TokenPunctuator::Comma) {
+                        self.next_token();
+                        continue;
+                    }
                     skip_semicolon(self);
                 }
             } else {
@@ -173,6 +155,23 @@ impl Parser {
                             v.push(self.parse_for_slot());
                             skip_semicolon(self);
                         }
+                        TokenKeyword::Break => {
+                            v.push(Expr::Break);
+                            self.next_token();
+                            skip_semicolon(self);
+                        }
+                        TokenKeyword::Continue => {
+                            v.push(Expr::Continue);
+                            self.next_token();
+                            skip_semicolon(self);
+                        }
+                        TokenKeyword::Return => {
+                            self.next_token();
+                            if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+                                skip_semicolon(self);
+                            }
+                            v.push(Expr::Return(Box::new(Expr::Empty)));
+                        }
                         _ => {
                             todo!("{:?}", &t);
                         }
@@ -201,28 +200,96 @@ impl Parser {
         return (expr, parser);
     }
 
-    fn get_precedence(&self, typ: TokenType) -> Precedence {
-        match typ {
-            TokenType::Punctuator(t) => match &t {
-                TokenPunctuator::Plus | TokenPunctuator::Minus => Precedence::Sum,
-                TokenPunctuator::Multiply | TokenPunctuator::Divide => Precedence::Product,
-                TokenPunctuator::Or => Precedence::Or,
-                TokenPunctuator::And => Precedence::And,
-                TokenPunctuator::Not => Precedence::Prefix,
-                TokenPunctuator::LShift | TokenPunctuator::RShift => Precedence::Shift,
-                TokenPunctuator::Equal | TokenPunctuator::NE => Precedence::Equality,
-                TokenPunctuator::GT
-                | TokenPunctuator::GTE
-                | TokenPunctuator::LT
-                | TokenPunctuator::LTE => Precedence::Comparison,
-                TokenPunctuator::BitOr => Precedence::BitOr,
-                TokenPunctuator::BitXor => Precedence::BitXor,
-                TokenPunctuator::BitAnd => Precedence::BitAnd,
-                _ => Precedence::Lowest,
-            },
-            _ => Precedence::Lowest,
-        }
+    fn log(&self) {
+        self.println(
+            31,
+            format!(
+                "<{}>,\n     <{}>",
+                &self.current_token.desc(),
+                &self.peek_token.desc()
+            ),
+        );
     }
+
+    fn println(&self, color: i32, msg: String) {
+        println!("\x1b[{}m{} \x1b[39m ", color, msg);
+    }
+
+    fn err(&self, str: &str) -> String {
+        format!(
+            "\x1b[31m{}\x1b[39m,token:<\x1b[32m{}\x1b[39m>",
+            str,
+            self.current_token.desc()
+        )
+    }
+
+    fn next_token(&mut self) -> Token {
+        let token = self.current_token.clone();
+        self.current_token = std::mem::replace(&mut self.peek_token, self.lexer.next_token());
+        token
+    }
+
+    /// a = 1;   a=1;
+    fn parse_mov_slot(&mut self) -> Vec<Expr> {
+        let mut v: Vec<Expr> = Vec::new();
+        loop {
+            if self.current_token.is_eof(true) {
+                break;
+            }
+            if self.current_token.checked_keyword() {
+                break;
+            }
+            let token = self.next_token(); //a
+            let mov = self.current_token.clone(); //b
+            if mov.is_eof(true) {
+                //let a=b,d;
+                v.push(Expr::Assignment(token.raw.clone(), Box::new(Expr::Empty)));
+                break;
+            }
+            if mov.is_ptor(TokenPunctuator::Comma) {
+                v.push(Expr::Assignment(token.raw.clone(), Box::new(Expr::Empty)));
+                self.next_token();
+                continue;
+            }
+            if token.line != self.current_token.line {
+                if self.peek_token.is_ptor(TokenPunctuator::MOV)
+                    || self.peek_token.is_ptor(TokenPunctuator::Comma)
+                    || self.peek_token.is_ptor(TokenPunctuator::Semicolon)
+                {
+                    v.push(Expr::Assignment(token.raw.clone(), Box::new(Expr::Empty)));
+                    continue;
+                } else {
+                    todo!()
+                }
+            }
+            self.next_token();
+            // let last_line = self.current_token.line;
+            let expr = self.parse_base_analyze();
+            v.push(Expr::Assignment(token.raw.clone(), Box::new(expr)));
+            if self.current_token.is_ptor(TokenPunctuator::Comma) {
+                if self.peek_token.checked_keyword() {
+                    panic!("{}", self.err("Unexpected token"))
+                }
+                self.next_token();
+                if self.current_token.is_eof(true) {
+                    panic!("{}", self.err("Unexpected token"))
+                }
+                if self.peek_token.is_ident_or_num()
+                    && self.current_token.line != self.peek_token.line
+                {
+                    v.push(Expr::Assignment(
+                        self.current_token.raw.clone(),
+                        Box::new(Expr::Empty),
+                    ));
+                    self.next_token();
+                    break;
+                }
+            }
+        }
+        // dbg!(&v);
+        v
+    }
+
     ///读取token片断,注意current_token不能是 '(' , '[' , '{' ,在调用时请先处理
     fn get_token_duration(&mut self, left: TokenPunctuator, right: TokenPunctuator) -> Vec<Token> {
         let mut list: Vec<Token> = Vec::new();
@@ -346,12 +413,11 @@ impl Parser {
             let list: Vec<Token> =
                 self.get_token_duration(TokenPunctuator::LCParen, TokenPunctuator::RCParen);
             let (expr, _) = self.new_parser(list, 0, true);
-            if self.current_token.is_ptor(TokenPunctuator::RCParen) {
-                self.next_token();
-                return Expr::BlockStatement(expr);
-            } else {
+            if !self.current_token.is_ptor(TokenPunctuator::RCParen) {
                 panic!("{}", self.err("Unexpected end of input"));
-            }
+            } 
+            self.next_token();
+            return Expr::BlockStatement(expr);
         } else {
             let line = self.current_token.line;
             let body = self.parse_statement(1, false);
@@ -371,7 +437,9 @@ impl Parser {
             let list: Vec<Token> =
                 self.get_token_duration(TokenPunctuator::LParen, TokenPunctuator::RParen);
             let (condition, _) = self.new_parser(list, 1, true);
-            // println!("{:?}", condition);
+            if !self.current_token.is_ptor(TokenPunctuator::RParen){
+                panic!("{}",self.err("Unexpected token"));
+            }
             self.next_token(); //skip ')'
             let mut expr1 = Expr::Empty;
             let mut expr2 = Expr::Empty;
@@ -381,12 +449,11 @@ impl Parser {
                 let list: Vec<Token> =
                     self.get_token_duration(TokenPunctuator::LCParen, TokenPunctuator::RCParen);
                 let (expr, _) = self.new_parser(list, 0, true);
-                if self.current_token.is_ptor(TokenPunctuator::RCParen) {
-                    self.next_token();
-                    expr1 = Expr::BlockStatement(expr);
-                } else {
+                if !self.current_token.is_ptor(TokenPunctuator::RCParen) {
                     panic!("{}", self.err("Unexpected end of input"));
                 }
+                self.next_token();
+                expr1 = Expr::BlockStatement(expr);
             } else {
                 line = self.current_token.line;
                 let expr = self.parse_statement(1, false);
@@ -426,11 +493,10 @@ impl Parser {
             let e = parser.parse_statement(1, true);
             v.push(e[0].clone());
         }
-        if self.current_token.is_ptor(TokenPunctuator::RParen) {
-            self.next_token();
-        } else {
+        if !self.current_token.is_ptor(TokenPunctuator::RParen) {
             panic!("{}", self.err("Unexpected end of input"))
-        }
+        }  
+        self.next_token();
         Expr::Call(Box::new(callee.clone()), v)
     }
     //a[   a.
@@ -467,11 +533,10 @@ impl Parser {
                     panic!()
                 }
             }
-            if self.current_token.is_ptor(TokenPunctuator::RSParen) {
-                self.next_token(); //]
-            } else {
+            if !self.current_token.is_ptor(TokenPunctuator::RSParen) {
                 panic!("{}", self.err("Unexpected end of input"))
             }
+            self.next_token(); //]
         } else {
             panic!()
         }
@@ -526,33 +591,6 @@ impl Parser {
         return (false, Expr::Empty);
     }
 
-    fn get_operator(&self, token: &Token) -> Operator {
-        let op = match &token.typ {
-            TokenType::Punctuator(t) => match t {
-                TokenPunctuator::Plus => Operator::Plus,
-                TokenPunctuator::Minus => Operator::Minus,
-                TokenPunctuator::Multiply => Operator::Multiply,
-                TokenPunctuator::Divide => Operator::Divide,
-                TokenPunctuator::Or => Operator::Or,
-                TokenPunctuator::And => Operator::And,
-                TokenPunctuator::Not => Operator::Not,
-                TokenPunctuator::LShift => Operator::LShift,
-                TokenPunctuator::RShift => Operator::RShift,
-                TokenPunctuator::Equal => Operator::Equal,
-                TokenPunctuator::NE => Operator::NE,
-                TokenPunctuator::GT => Operator::GT,
-                TokenPunctuator::GTE => Operator::GTE,
-                TokenPunctuator::LT => Operator::LT,
-                TokenPunctuator::LTE => Operator::LTE,
-                TokenPunctuator::BitOr => Operator::BitOr,
-                TokenPunctuator::BitXor => Operator::BitXor,
-                TokenPunctuator::BitAnd => Operator::BitAnd,
-                _ => unreachable!(),
-            },
-            _ => unreachable!(),
-        };
-        op
-    }
     fn parser_infix(&mut self, left: &mut Expr, precedence: Precedence) -> Expr {
         if self.peek_token.is_eof(true) {
             return left.clone();
@@ -563,7 +601,6 @@ impl Parser {
         if self.peek_token.is_ptor(TokenPunctuator::Comma) {
             return left.clone();
         }
-        let mut last_pre_token = self.current_token.typ.clone();
         while precedence < self.get_precedence(self.current_token.typ.clone()) {
             let op = self.next_token();
             if self.current_token.is_eof(true) {
@@ -579,22 +616,22 @@ impl Parser {
                         *left = Expr::Infix(Box::new(left.clone()), t, Box::new(expr.clone()));
                     }
                     Expr::Infix(_left, _op, _right) => {
-                        if self.get_precedence(last_pre_token) > self.get_precedence(op.typ.clone())
+                        if self.get_precedence_by_operator(&_op.clone())
+                            < self.get_precedence(op.typ.clone())
                         {
-                            *left = Expr::Infix(Box::new(left.clone()), t, Box::new(expr.clone()));
-                        } else {
                             *left = Expr::Infix(
                                 Box::new(*_left.clone()),
                                 _op.clone(),
                                 Box::new(Expr::Infix(_right.clone(), t, Box::new(expr.clone()))),
                             );
+                        } else {
+                            *left = Expr::Infix(Box::new(left.clone()), t, Box::new(expr.clone()));
                         }
                     }
                     _ => {
                         panic!()
                     }
                 }
-                last_pre_token = op.typ.clone();
             } else if self.current_token.is_ptor(TokenPunctuator::LParen) {
                 let expr = self.parse_base_analyze();
                 *left = Expr::Infix(
@@ -652,6 +689,8 @@ impl Parser {
             if self.current_token.is_update() {
                 let op = self.next_token();
                 return Expr::Update(Box::new(expr), op.raw.clone(), false);
+            } else if self.current_token.is_ptor(TokenPunctuator::Comma) {
+                return expr;
             }
             return self.parser_infix(&mut expr, Precedence::Lowest);
         }
@@ -690,6 +729,71 @@ impl Parser {
                 }
             }
             panic!()
+        }
+    }
+}
+
+trait IParse {
+    fn get_operator(&self, token: &Token) -> Operator;
+    fn get_precedence(&self, typ: TokenType) -> Precedence;
+    fn get_precedence_by_operator(&self, typ: &Operator) -> Precedence;
+}
+
+impl IParse for Parser {
+    fn get_operator(&self, token: &Token) -> Operator {
+        let op = match &token.typ {
+            TokenType::Punctuator(t) => match t {
+                TokenPunctuator::Plus => Operator::Plus,
+                TokenPunctuator::Minus => Operator::Minus,
+                TokenPunctuator::Multiply => Operator::Multiply,
+                TokenPunctuator::Divide => Operator::Divide,
+                // TokenPunctuator::Or => Operator::Or,
+                // TokenPunctuator::And => Operator::And,
+                // TokenPunctuator::Not => Operator::Not,
+                // TokenPunctuator::LShift => Operator::LShift,
+                // TokenPunctuator::RShift => Operator::RShift,
+                // TokenPunctuator::Equal => Operator::Equal,
+                // TokenPunctuator::NE => Operator::NE,
+                // TokenPunctuator::GT => Operator::GT,
+                // TokenPunctuator::GTE => Operator::GTE,
+                // TokenPunctuator::LT => Operator::LT,
+                // TokenPunctuator::LTE => Operator::LTE,
+                // TokenPunctuator::BitOr => Operator::BitOr,
+                // TokenPunctuator::BitXor => Operator::BitXor,
+                // TokenPunctuator::BitAnd => Operator::BitAnd,
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        };
+        op
+    }
+    fn get_precedence(&self, typ: TokenType) -> Precedence {
+        match typ {
+            TokenType::Punctuator(t) => match &t {
+                TokenPunctuator::Plus | TokenPunctuator::Minus => Precedence::Sum,
+                TokenPunctuator::Multiply | TokenPunctuator::Divide => Precedence::Product,
+                TokenPunctuator::Or => Precedence::Or,
+                TokenPunctuator::And => Precedence::And,
+                TokenPunctuator::Not => Precedence::Prefix,
+                TokenPunctuator::LShift | TokenPunctuator::RShift => Precedence::Shift,
+                TokenPunctuator::Equal | TokenPunctuator::NE => Precedence::Equality,
+                TokenPunctuator::GT
+                | TokenPunctuator::GTE
+                | TokenPunctuator::LT
+                | TokenPunctuator::LTE => Precedence::Comparison,
+                TokenPunctuator::BitOr => Precedence::BitOr,
+                TokenPunctuator::BitXor => Precedence::BitXor,
+                TokenPunctuator::BitAnd => Precedence::BitAnd,
+                _ => Precedence::Lowest,
+            },
+            _ => Precedence::Lowest,
+        }
+    }
+    fn get_precedence_by_operator(&self, typ: &Operator) -> Precedence {
+        match typ {
+            Operator::Plus | Operator::Minus => Precedence::Sum,
+            Operator::Multiply | Operator::Divide => Precedence::Product,
+            _ => unreachable!(),
         }
     }
 }
