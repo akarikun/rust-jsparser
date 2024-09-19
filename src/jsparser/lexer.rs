@@ -223,41 +223,43 @@ impl ILexer for Lexer {
                 self.column,
             ),
             Some('"') => {
-                // let typ = if self.ch == Some('"') { true } else { false };
+                self.read_char();
                 let mut result = String::new();
                 let line = self.line;
                 while let Some(ch) = self.ch {
+                    if ch == '\n' {
+                        if let Some(last_char) = result.chars().last() {
+                            if last_char == '\\' {
+                                self.read_char();
+                                continue;
+                            }
+                        } else {
+                            println!("Unexpected token ILLEGAL");
+                        }
+                    }
                     result.push(ch);
                     self.read_char();
                     if self.ch == Some('"') {
-                        result.push(self.ch.unwrap());
                         self.read_char();
                         break;
                     }
                 }
-                return Token::new(
-                    TokenType::Literal(result, "".to_string()),
-                    line,
-                    self.column,
-                );
+                return Token::new(TokenType::Literal(result), line, self.column);
             }
-            Some('`') => {
-                let mut result = String::new();
-                let line = self.line;
-                while let Some(ch) = self.ch {
-                    if ch != '`' {
-                        result.push(ch);
-                        self.read_char();
-                    } else {
-                        break;
-                    }
-                }
-                return Token::new(
-                    TokenType::Literal(result, "".to_string()),
-                    line,
-                    self.column,
-                );
-            }
+            // Some('`') => {
+            //     self.read_char();
+            //     let mut result = String::new();
+            //     let line = self.line;
+            //     while let Some(ch) = self.ch {
+            //         result.push(ch);
+            //         self.read_char();
+            //         if self.ch == Some('`') {
+            //             self.read_char();
+            //             break;
+            //         }
+            //     }
+            //     return Token::new(TokenType::TemplateLiteral(result), line, self.column);
+            // }
             Some('&') => {
                 let pc = self.peek_char();
                 if pc == Some('&') {
@@ -311,7 +313,7 @@ impl ILexer for Lexer {
             }
             Some(ch) if ch.is_digit(10) => {
                 let (num, line) = self.read_number();
-                return Token::new(TokenType::Number(num), line, self.column);
+                return Token::new(TokenType::Literal(num), line, self.column);
             }
             Some(ch) if ch.is_alphabetic() => {
                 let (ident, line) = self.read_identifier();

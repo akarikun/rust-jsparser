@@ -6,7 +6,9 @@ pub enum Expr {
     Unary(Unary, Box<Expr>),
     Unexpected(String), //异常
     Identifier(String),
-    Number(f64),
+
+    TemplateLiteral(Box<Expr>,Box<Expr>),//``
+    Literal(String),
     Assignment(String, Box<Expr>), // a=b
     // Prefix(Prefix, Box<Expr>),     // !a  -1
     Call(Box<Expr>, Vec<Expr>),    // a()  a.b()
@@ -56,9 +58,10 @@ pub enum Prefix {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
     Plus,
-    Minus,
+    Subtract,
     Multiply,
     Divide,
+    Modulo,
     Or,
     And,
     Not,
