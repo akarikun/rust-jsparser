@@ -191,6 +191,7 @@ pub enum TokenKeyword {
     Delete,   //delete
     Do,       //do
     Swith,    //switch
+    Function, //function
 }
 impl std::fmt::Display for TokenKeyword {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -217,6 +218,7 @@ impl TokenKeyword {
             TokenKeyword::Delete => String::from("delete"),
             TokenKeyword::None => String::from(""),
             TokenKeyword::Continue => String::from("continue"),
+            TokenKeyword::Function => String::from("function"),
         }
     }
 }

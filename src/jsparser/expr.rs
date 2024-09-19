@@ -7,11 +7,11 @@ pub enum Expr {
     Unexpected(String), //异常
     Identifier(String),
 
-    TemplateLiteral(Box<Expr>,Box<Expr>),//``
+    TemplateLiteral(Box<Expr>, Box<Expr>), //``
     Literal(String),
     Assignment(String, Box<Expr>), // a=b
     // Prefix(Prefix, Box<Expr>),     // !a  -1
-    Call(Box<Expr>, Vec<Expr>),    // a()  a.b()
+    Call(Box<Expr>, Vec<Expr>), // a()  a.b()
 
     Member(Box<Expr>, Box<Expr>), //a.b a[b]
     Sequence(Vec<Expr>),          // a[1,2,3,4]
@@ -28,6 +28,7 @@ pub enum Expr {
     ForOf(Box<Expr>, Box<Expr>),                     //for of
     Break,
     Continue,
+    Function(Box<Expr>, Vec<Expr>, Box<Expr>), //function
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -78,7 +79,6 @@ pub enum Operator {
     BitAnd,
     INC,
     DEC,
-
     // In,
     // Of,
 }

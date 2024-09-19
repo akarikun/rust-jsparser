@@ -389,6 +389,13 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
+                    "function"=>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Function),
+                            line,
+                            self.column,
+                        )
+                    }
                     _ => {
                         return Token::new(TokenType::Ident(ident), line, self.column);
                     }
