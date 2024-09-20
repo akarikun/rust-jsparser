@@ -20,6 +20,13 @@ impl Program {
             call_args: Vec::new(),
         }
     }
+
+    pub fn print_tree(&self) {
+        for (index, stmt) in self.statements.iter().enumerate() {
+            println!("({}) | {:?}", index + 1, stmt);
+        }
+    }
+    ///会初始先加载全局方法
     pub fn run(&mut self) {
         self.init_function(self.statements.clone());
         self.eval_list(self.statements.clone());
@@ -27,10 +34,10 @@ impl Program {
     pub fn register_method(&mut self, ident: String, callback: Box<dyn Fn(Vec<JSType>)>) {
         self.call_map.insert(ident, callback);
     }
-    pub fn bind_global_value(&mut self, ident: String, value: JSType) {
+    pub fn bind_value(&mut self, ident: String, value: JSType) {
         self.value_map.insert(ident, value);
     }
-    pub fn bind_call_value(&mut self, ident: String, _args: Option<&Vec<Expr>>) {
+    fn bind_call_value(&mut self, ident: String, _args: Option<&Vec<Expr>>) {
         let arg_id = |expr: &Expr| -> String {
             if let Expr::Identifier(a) = expr {
                 return a.to_string();
@@ -55,16 +62,8 @@ impl Program {
     fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
         match e {
             Expr::Infix(_left, op, _right) => {
-                let left = self.parse(index, _left);
-                if let Err(msg) = left {
-                    return Err(msg);
-                }
-                let left = left.unwrap();
-                let right = self.parse(index, _right);
-                if let Err(msg) = right {
-                    return Err(msg);
-                }
-                let right = right.unwrap();
+                let left = self.parse(index, _left)?;
+                let right = self.parse(index, _right)?;
                 return match &op {
                     Operator::Plus => match left.add(&right) {
                         Ok(result) => Ok(result),
@@ -121,16 +120,13 @@ impl Program {
                         expr,
                         Expr::Identifier(_) | Expr::Literal(_) | Expr::Call(_, _)
                     ) {
-                        let result = self.parse(index, &expr.clone());
-                        if let Err(_) = result {
-                            return result;
-                        }
-                        let result = result.unwrap();
+                        let result = self.parse(index, &expr.clone())?;
+                        let result = result;
                         args.insert(i.to_string(), result.clone());
                         arg2.push(result.clone());
                     } else if matches!(expr, Expr::Infix(_, _, _)) {
-                        let result = self.parse(index, &expr);
-                        arg2.push(result.unwrap());
+                        let result = self.parse(index, &expr)?;
+                        arg2.push(result);
                     } else {
                         dbg!(&expr);
                         panic!()
@@ -233,6 +229,7 @@ impl Program {
                 }
             }
             Expr::Function(_, _, _) => {
+                //这里要跳过方法声明
                 return None;
             }
             Expr::BlockStatement(expr) => {

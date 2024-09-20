@@ -2,11 +2,11 @@ mod jsparser;
 use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 use std::time::Instant;
 
-fn main() {
-    //暂不支持连续赋值如: a=b=1;
-    //最好每个语句最后结尾使用;结束
+//暂不支持连续赋值如: a=b=1;
+//最好每个语句最后结尾使用;结束
+fn main() -> Result<(), String> {
     let input = r#"
-    log(a+1,2);
+    log(a+1);
     log(a+1+a*2-a);
     log("a"+"1");
     log("a"+2+3);
@@ -24,10 +24,12 @@ fn main() {
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
-    // lexer.print();
+    lexer.print();//打印token
     let mut parser = Parser::new(Box::new(lexer));
-    let mut program = parser.parse_program();
-    program.bind_global_value(String::from("a"), JSType::Int(12));
+
+    let mut program = parser.parse_program()?;
+    program.print_tree();//打印树
+    program.bind_value(String::from("a"), JSType::Int(12));
     program.register_method(
         String::from("log"),
         Box::new(|args| {
@@ -39,4 +41,5 @@ fn main() {
     let micros = duration.as_micros();
     let millis = duration.as_millis();
     println!("解析耗时: {:?}µs ({}ms)", micros, millis);
+    Ok(())
 }
