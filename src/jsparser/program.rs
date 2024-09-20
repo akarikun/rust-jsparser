@@ -8,7 +8,6 @@ pub struct Program {
     fn_map: HashMap<String, Expr>,                       //方法
     value_map: HashMap<String, JSType>,                  //全局变量
     call_args: Vec<HashMap<String, JSType>>,             //函数变量,逻辑要优化
-    eax: JSType,                                         //存放返回值
 }
 
 impl Program {
@@ -19,10 +18,10 @@ impl Program {
             fn_map: HashMap::new(),
             value_map: HashMap::new(),
             call_args: Vec::new(),
-            eax: JSType::Void,
         }
     }
     pub fn run(&mut self) {
+        self.init_function(self.statements.clone());
         self.eval_list(self.statements.clone());
     }
     pub fn register_method(&mut self, ident: String, callback: Box<dyn Fn(Vec<JSType>)>) {
@@ -53,74 +52,85 @@ impl Program {
             }
         }
     }
-    fn parse(&mut self, mut index: usize, e: &Expr) -> JSType {
-        // dbg!(&e);
+    fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
         match e {
             Expr::Infix(_left, op, _right) => {
                 let left = self.parse(index, _left);
+                if let Err(msg) = left {
+                    return Err(msg);
+                }
+                let left = left.unwrap();
                 let right = self.parse(index, _right);
+                if let Err(msg) = right {
+                    return Err(msg);
+                }
+                let right = right.unwrap();
                 return match &op {
                     Operator::Plus => match left.add(&right) {
-                        Ok(result) => result,
-                        Err(e) => panic!("{}", e),
+                        Ok(result) => Ok(result),
+                        Err(e) => Err(e),
                     },
                     Operator::Subtract => match left.subtract(&right) {
-                        Ok(result) => result,
-                        Err(e) => panic!("{}", e),
+                        Ok(result) => Ok(result),
+                        Err(e) => Err(e),
                     },
                     Operator::Multiply => match left.multiply(&right) {
-                        Ok(result) => result,
-                        Err(e) => panic!("{}", e),
+                        Ok(result) => Ok(result),
+                        Err(e) => Err(e),
                     },
                     Operator::Divide => match left.divide(&right) {
-                        Ok(result) => result,
-                        Err(e) => panic!("{}", e),
+                        Ok(result) => Ok(result),
+                        Err(e) => Err(e),
                     },
                     Operator::Modulo => match left.modulo(&right) {
-                        Ok(result) => result,
-                        Err(e) => panic!("{}", e),
+                        Ok(result) => Ok(result),
+                        Err(e) => Err(e),
                     },
-                    Operator::Equal => JSType::Bool(left.equal(&right)),
+                    Operator::Equal => Ok(JSType::Bool(left.equal(&right))),
                     _ => todo!("{:?}", &op),
                 };
             }
             Expr::Literal(val) => {
                 let i = val.parse::<i64>();
                 if !i.is_err() {
-                    return JSType::Int(i.unwrap());
+                    return Ok(JSType::Int(i.unwrap()));
                 }
                 let f = val.parse::<f64>();
                 if !f.is_err() {
-                    return JSType::Float(f.unwrap());
+                    return Ok(JSType::Float(f.unwrap()));
                 }
-                return JSType::String(val.clone());
+                return Ok(JSType::String(val.clone()));
             }
             Expr::Identifier(t) => {
                 if let Some(val) = self.call_args.last() {
                     if let Some(v2) = val.get(t) {
-                        return v2.clone();
+                        return Ok(v2.clone());
                     }
                 }
                 if let Some(val) = self.value_map.get(t) {
-                    return val.clone();
+                    return Ok(val.clone());
                 }
                 dbg!(&self.call_args);
                 panic!("{}", t);
             }
             Expr::Call(ee, expr) => {
                 let mut args = HashMap::new();
-                let mut arg2 = Vec::new();
+                let mut arg2: Vec<JSType> = Vec::new();
                 for (i, expr) in expr.iter().enumerate() {
                     if matches!(
                         expr,
                         Expr::Identifier(_) | Expr::Literal(_) | Expr::Call(_, _)
                     ) {
                         let result = self.parse(index, &expr.clone());
+                        if let Err(_) = result {
+                            return result;
+                        }
+                        let result = result.unwrap();
                         args.insert(i.to_string(), result.clone());
                         arg2.push(result.clone());
                     } else if matches!(expr, Expr::Infix(_, _, _)) {
                         let result = self.parse(index, &expr);
-                        arg2.push(result.clone());
+                        arg2.push(result.unwrap());
                     } else {
                         dbg!(&expr);
                         panic!()
@@ -138,6 +148,8 @@ impl Program {
                     } else if let Some(e) = self.call_map.get(&ident) {
                         // dbg!(&arg2);
                         e(arg2);
+                    } else {
+                        return Err(format!("Uncaught ReferenceError: {} is not defined", ident));
                     }
                 }
             }
@@ -156,7 +168,7 @@ impl Program {
             }
             Expr::Return(expr) => match expr.as_ref() {
                 Expr::Empty => {
-                    return JSType::Void;
+                    return Ok(JSType::Void);
                 }
                 Expr::Infix(_, _, _) => return self.parse(index, &expr),
                 _ => {
@@ -173,7 +185,6 @@ impl Program {
                     }
                     let result = self.parse(index, i);
                     if ret {
-                        self.eax = result.clone();
                         return result;
                     }
                 }
@@ -183,49 +194,70 @@ impl Program {
                 panic!("  parse => {:?}", e);
             }
         }
-        JSType::NULL
+        Ok(JSType::NULL)
     }
     fn eval_list(&mut self, stmt: Vec<Expr>) {
         for (_, expr) in stmt.iter().enumerate() {
-            self.eval(0, expr);
+            if let Some(msg) = self.eval(0, expr) {
+                println!("\x1b[31m{}\x1b[39m", msg);
+                return;
+            }
         }
     }
-    fn eval(&mut self, mut index: usize, stmt: &Expr) {
+    fn eval(&mut self, mut index: usize, stmt: &Expr) -> Option<String> {
         match &stmt {
-            Expr::Call(ee, vec) => {
-                self.parse(index, stmt);
+            Expr::Call(_, _) => {
+                let result = self.parse(index, stmt);
+                if let Err(msg) = result {
+                    return Some(msg);
+                } else {
+                    return None;
+                }
             }
             Expr::If(e, left, right) => {
-                let result = self.parse(index, e);
-                if let JSType::Bool(r) = result {
-                    if r {
-                        if let Expr::BlockStatement(expr) = left.as_ref() {
-                            self.eval_list(expr.clone());
+                if let Ok(result) = self.parse(index, e) {
+                    if let JSType::Bool(r) = result {
+                        if r {
+                            if let Expr::BlockStatement(expr) = left.as_ref() {
+                                self.eval_list(expr.clone());
+                            }
+                        } else {
+                            if let Expr::BlockStatement(expr) = right.as_ref() {
+                                self.eval_list(expr.clone());
+                            }
                         }
                     } else {
-                        if let Expr::BlockStatement(expr) = right.as_ref() {
-                            self.eval_list(expr.clone());
-                        }
+                        panic!("{:?}", result);
                     }
                 } else {
-                    panic!("{:?}", result);
                 }
             }
-            Expr::Function(ident, _, _) => {
-                //只处理声明函数
-                // write(31, format!("({}) {:?}", index + 1, expr));
-                if let Expr::Identifier(t) = ident.as_ref() {
-                    self.fn_map.insert(t.clone(), stmt.clone());
-                } else {
-                    panic!("expr::function");
-                }
+            Expr::Function(_, _, _) => {
+                return None;
             }
             Expr::BlockStatement(expr) => {
                 self.eval_list(expr.clone());
             }
             _ => {
                 self.parse(index, stmt);
-                // panic!("{:?}", stmt);
+            }
+        }
+        None
+    }
+
+    ///需要最先加载方法
+    fn init_function(&mut self, stmt: Vec<Expr>) {
+        for (_, expr) in stmt.iter().enumerate() {
+            match &expr {
+                Expr::Function(ident, _, _) => {
+                    //只处理声明函数
+                    if let Expr::Identifier(t) = ident.as_ref() {
+                        self.fn_map.insert(t.clone(), expr.clone());
+                    } else {
+                        panic!("expr::function");
+                    }
+                }
+                _ => {}
             }
         }
     }
