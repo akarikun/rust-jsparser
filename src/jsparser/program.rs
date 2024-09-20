@@ -4,10 +4,10 @@ use super::expr::{Expr, Operator};
 
 pub struct Program {
     statements: Vec<Expr>,
-    call_map: HashMap<String, Box<dyn Fn(Vec<JSType>)>>, //全局方法
-    fn_map: HashMap<String, Expr>,                       //方法
-    value_map: HashMap<String, JSType>,                  //全局变量
-    call_args: Vec<HashMap<String, JSType>>,             //函数变量,逻辑要优化
+    call_map: HashMap<String, Box<dyn Fn(Vec<JSType>) -> Result<JSType, String>>>, //全局方法
+    fn_map: HashMap<String, Expr>,                                                 //方法
+    value_map: HashMap<String, JSType>,                                            //全局变量
+    call_args: Vec<HashMap<String, JSType>>, //函数变量,逻辑要优化
 }
 
 impl Program {
@@ -31,7 +31,11 @@ impl Program {
         self.init_function(self.statements.clone());
         self.eval_list(self.statements.clone());
     }
-    pub fn register_method(&mut self, ident: String, callback: Box<dyn Fn(Vec<JSType>)>) {
+    pub fn register_method(
+        &mut self,
+        ident: String,
+        callback: Box<dyn Fn(Vec<JSType>) -> Result<JSType, String>>,
+    ) {
         self.call_map.insert(ident, callback);
     }
     pub fn bind_value(&mut self, ident: String, value: JSType) {
@@ -115,20 +119,19 @@ impl Program {
             Expr::Call(ee, expr) => {
                 let mut args = HashMap::new();
                 let mut arg2: Vec<JSType> = Vec::new();
-                for (i, expr) in expr.iter().enumerate() {
+                for (i, expr2) in expr.iter().enumerate() {
                     if matches!(
-                        expr,
+                        expr2,
                         Expr::Identifier(_) | Expr::Literal(_) | Expr::Call(_, _)
                     ) {
-                        let result = self.parse(index, &expr.clone())?;
-                        let result = result;
+                        let result = self.parse(index, &expr2.clone())?;
                         args.insert(i.to_string(), result.clone());
                         arg2.push(result.clone());
-                    } else if matches!(expr, Expr::Infix(_, _, _)) {
-                        let result = self.parse(index, &expr)?;
+                    } else if matches!(expr2, Expr::Infix(_, _, _)) {
+                        let result = self.parse(index, &expr2)?;
                         arg2.push(result);
                     } else {
-                        dbg!(&expr);
+                        dbg!(&expr2);
                         panic!()
                     }
                 }
@@ -142,8 +145,7 @@ impl Program {
                         }
                         return result;
                     } else if let Some(e) = self.call_map.get(&ident) {
-                        // dbg!(&arg2);
-                        e(arg2);
+                        return e(arg2);
                     } else {
                         return Err(format!("Uncaught ReferenceError: {} is not defined", ident));
                     }
@@ -207,6 +209,7 @@ impl Program {
                 if let Err(msg) = result {
                     return Some(msg);
                 } else {
+                    // dbg!(&result);
                     return None;
                 }
             }
