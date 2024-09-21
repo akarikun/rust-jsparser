@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{borrow::BorrowMut, collections::HashMap};
 
 use super::expr::{Expr, Operator};
 
@@ -47,14 +47,8 @@ impl Program {
     pub fn bind_value(&mut self, ident: String, value: JSType) {
         self.value_map.insert(ident, value);
     }
-    fn bind_local_args(&mut self, index: usize, args: &Vec<Expr>, is_bind: bool) {
-        if !is_bind {
-            self.local_value.remove(&index);
-        }
-        if args.len() == 0 {
-            self.local_value.insert(index, HashMap::new());
-            return;
-        }
+
+    fn bind_local_args(&mut self, index: usize, args: &Vec<Expr>) {
         let arr = self.call_value.pop().unwrap();
         let mut map = HashMap::new();
         for (i, e) in args.iter().enumerate() {
@@ -64,16 +58,20 @@ impl Program {
         }
         self.local_value.insert(index, map);
     }
-    fn bind_local_arg(&mut self, index: usize, ident: String, expr: JSType, is_bind: bool) {
-        if !is_bind {
-            self.local_value.remove(&index);
-        }
-        if let Some(val) = self.local_value.get_mut(&index) {
-            val.insert(ident, expr.clone());
+    fn bind_local_arg(&mut self, index: usize, ident: String, expr: JSType) {
+        self.local_value
+            .get_mut(&index)
+            .unwrap()
+            .insert(ident, expr.clone());
+    }
+    /// index层级变化时调用
+    fn update_index(&mut self, index: &mut usize, is_inc: bool) {
+        if is_inc {
+            *index += 1;
+            self.local_value.insert(*index, HashMap::new());
         } else {
-            let mut map = HashMap::new();
-            map.insert(ident, expr);
-            self.local_value.insert(index, map);
+            self.local_value.remove(index);
+            *index -= 1;
         }
     }
     fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
@@ -82,26 +80,11 @@ impl Program {
                 let left = self.parse(index, _left)?;
                 let right = self.parse(index, _right)?;
                 return match &op {
-                    Operator::Plus => match left.add(&right) {
-                        Ok(result) => Ok(result),
-                        Err(e) => Err(e),
-                    },
-                    Operator::Subtract => match left.subtract(&right) {
-                        Ok(result) => Ok(result),
-                        Err(e) => Err(e),
-                    },
-                    Operator::Multiply => match left.multiply(&right) {
-                        Ok(result) => Ok(result),
-                        Err(e) => Err(e),
-                    },
-                    Operator::Divide => match left.divide(&right) {
-                        Ok(result) => Ok(result),
-                        Err(e) => Err(e),
-                    },
-                    Operator::Modulo => match left.modulo(&right) {
-                        Ok(result) => Ok(result),
-                        Err(e) => Err(e),
-                    },
+                    Operator::Plus => left.add(&right),
+                    Operator::Subtract => left.subtract(&right),
+                    Operator::Multiply => left.multiply(&right),
+                    Operator::Divide => left.divide(&right),
+                    Operator::Modulo => left.modulo(&right),
                     Operator::Equal => Ok(JSType::Bool(left.equal(&right))),
                     Operator::NE => Ok(JSType::Bool(!left.equal(&right))),
                     Operator::GT => Ok(JSType::Bool(left.GT(&right))),
@@ -138,8 +121,8 @@ impl Program {
                 if let Some(val) = self.value_map.get(t) {
                     return Ok(val.clone());
                 }
-                dbg!(&self.local_value);
-                panic!("{}", t);
+                // dbg!(&self.local_value);
+                return Err(format!("Uncaught ReferenceError: {} is not defined", t));
             }
             Expr::Call(ee, expr) => {
                 let mut args: Vec<JSType> = Vec::new();
@@ -176,17 +159,18 @@ impl Program {
             }
             Expr::Function(ident, args, body) => {
                 //处理函数调用后的实现功能
-                index += 1;
-                self.bind_local_args(index, args, true);
+                self.update_index(&mut index, true);
+                self.bind_local_args(index, args);
                 if let Expr::Identifier(id) = ident.as_ref() {
                     let result = self.parse(index, body.as_ref());
                     // dbg!(&result);
+                    self.bind_local_args(index, args);
+                    self.update_index(&mut index, false);
                     return result;
                 } else {
                     dbg!(&ident);
                     panic!("功能暂未实现")
                 }
-                index -= 1;
             }
             Expr::Return(expr) => match expr.as_ref() {
                 Expr::Empty => {
@@ -213,15 +197,15 @@ impl Program {
             }
             Expr::Assignment(ident, value) => {
                 let result = self.parse(index, value.as_ref())?;
-                self.bind_local_arg(index, ident.clone(), result, true);
+                self.bind_local_arg(index, ident.clone(), result);
             }
             Expr::Variable(variable, ident, value) => {
                 let result = self.parse(index, value.as_ref())?;
-                self.bind_local_arg(index, ident.clone(), result, true);
+                self.bind_local_arg(index, ident.clone(), result);
                 //还需要判断variable类型
             }
             Expr::For(init, test, update, block) => {
-                index += 1;
+                self.update_index(&mut index, true);
                 let init = self.parse(index, init.as_ref())?;
                 loop {
                     let test = self.parse(index, test.as_ref())?;
@@ -237,14 +221,14 @@ impl Program {
                         return Err(format!("表达式异常"));
                     }
                 }
-                index -= 1;
+                self.update_index(&mut index, false);
             }
             Expr::ForIn(_, _) => {}
             Expr::ForOf(_, _) => {}
             Expr::Update(ident, op, _) => {
                 let val = self.parse(index, &ident)?.INC()?;
                 if let Expr::Identifier(id) = ident.as_ref() {
-                    self.bind_local_arg(index, id.clone(), val, true);
+                    self.bind_local_arg(index, id.clone(), val);
                 } else {
                     return Err(format!("暂不支持其他表达式"));
                 }

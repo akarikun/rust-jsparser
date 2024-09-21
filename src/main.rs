@@ -13,8 +13,11 @@ fn main() -> Result<(), String> {
             log("test:"+(i+val+a));
         }
     }
-    log(foo3(1,2,3));//执行到这里报错后不执行后面的语句
-    test(11);
+    log("------");
+    test(22);
+    log("------");
+    log(val);//val is not defined 执行到这里报错后不执行后面的语句
+    test(33);
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));

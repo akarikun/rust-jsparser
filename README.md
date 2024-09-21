@@ -13,8 +13,11 @@ fn main() -> Result<(), String> {
             log("test:"+(i+val+a));
         }
     }
-    log(foo3(1,2,3));//执行到这里报错后不执行后面的语句
-    test(11);
+    log("------");
+    test(22);
+    log("------");
+    log(val);//val is not defined 执行到这里报错后不执行后面的语句
+    test(33);
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
@@ -66,6 +69,18 @@ fn main() -> Result<(), String> {
  log => [String("test:30")]
  log => [String("test:31")]
  log => [String("test:32")]
-Uncaught ReferenceError: foo3 is not defined
-解析耗时: 5540µs (5ms)
+ log => [String("------")]
+ log => [String("test:34")]
+ log => [String("test:35")]
+ log => [String("test:36")]
+ log => [String("test:37")]
+ log => [String("test:38")]
+ log => [String("test:39")]
+ log => [String("test:40")]
+ log => [String("test:41")]
+ log => [String("test:42")]
+ log => [String("test:43")]
+ log => [String("------")]
+Uncaught ReferenceError: val is not defined
+解析耗时: 10692µs (10ms)
 ```
