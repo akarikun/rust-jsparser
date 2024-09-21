@@ -6,7 +6,7 @@ pub enum Expr {
     Identifier(String),
 
     TemplateLiteral(Box<Expr>, Box<Expr>), //``
-    Literal(String),
+    Literal(String,String),
     Assignment(String, Box<Expr>), // a=b
     // Prefix(Prefix, Box<Expr>),     // !a  -1
     Call(Box<Expr>, Vec<Expr>), // a()  a.b()

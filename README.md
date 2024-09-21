@@ -6,11 +6,15 @@ ast树参考 [parse.html](https://esprima.org/demo/parse.html)
 ```
 fn main() -> Result<(), String> {
     let input = r#"
+    log(a)
     log(add(add(1,2),add(3,4,5)));
     test(11);
     function test(val){
         for(let i = 0;i<10;i++){
-            log("test:"+(i+val+a));
+            if (i%2!=0)
+                log("test:"+i+" "+(i+val+a))
+            else
+                log("test:"+i+" "+(i-val-a));
         }
     }
     log("------");
@@ -26,7 +30,10 @@ fn main() -> Result<(), String> {
 
     let mut program = parser.parse_program()?;
     // program.print_tree(); //打印树
+
+    //绑定全局变量
     program.bind_value(String::from("a"), JSType::Int(12));
+    //注册全局方法
     program.register_method(
         String::from("log"),
         Box::new(|args| {
@@ -58,29 +65,30 @@ fn main() -> Result<(), String> {
 ```
 
 ```
+  log => [Int(12)]
  log => [Int(15)]
- log => [String("test:23")]
- log => [String("test:24")]
- log => [String("test:25")]
- log => [String("test:26")]
- log => [String("test:27")]
- log => [String("test:28")]
- log => [String("test:29")]
- log => [String("test:30")]
- log => [String("test:31")]
- log => [String("test:32")]
+ log => [String("test:0, -23")]
+ log => [String("test:1, 24")]
+ log => [String("test:2, -21")]
+ log => [String("test:3, 26")]
+ log => [String("test:4, -19")]
+ log => [String("test:5, 28")]
+ log => [String("test:6, -17")]
+ log => [String("test:7, 30")]
+ log => [String("test:8, -15")]
+ log => [String("test:9, 32")]
  log => [String("------")]
- log => [String("test:34")]
- log => [String("test:35")]
- log => [String("test:36")]
- log => [String("test:37")]
- log => [String("test:38")]
- log => [String("test:39")]
- log => [String("test:40")]
- log => [String("test:41")]
- log => [String("test:42")]
- log => [String("test:43")]
+ log => [String("test:0, -34")]
+ log => [String("test:1, 35")]
+ log => [String("test:2, -32")]
+ log => [String("test:3, 37")]
+ log => [String("test:4, -30")]
+ log => [String("test:5, 39")]
+ log => [String("test:6, -28")]
+ log => [String("test:7, 41")]
+ log => [String("test:8, -26")]
+ log => [String("test:9, 43")]
  log => [String("------")]
 Uncaught ReferenceError: val is not defined
-解析耗时: 10692µs (10ms)
+解析耗时: 4827µs (4ms)
 ```

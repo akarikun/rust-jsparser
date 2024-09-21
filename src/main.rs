@@ -6,11 +6,15 @@ use std::time::Instant;
 //最好每个语句最后结尾使用;结束
 fn main() -> Result<(), String> {
     let input = r#"
+    log(a)
     log(add(add(1,2),add(3,4,5)));
     test(11);
     function test(val){
         for(let i = 0;i<10;i++){
-            log("test:"+(i+val+a));
+            if (i%2!=0)
+                log("test:"+i+" "+(i+val+a))
+            else
+                log("test:"+i+" "+(i-val-a));
         }
     }
     log("------");
@@ -26,7 +30,10 @@ fn main() -> Result<(), String> {
 
     let mut program = parser.parse_program()?;
     // program.print_tree(); //打印树
+
+    //绑定全局变量
     program.bind_value(String::from("a"), JSType::Int(12));
+    //注册全局方法
     program.register_method(
         String::from("log"),
         Box::new(|args| {

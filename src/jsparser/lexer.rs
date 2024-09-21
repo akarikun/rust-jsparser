@@ -122,15 +122,11 @@ impl ILexer for Lexer {
                     )
                 }
             }
-            Some('*') => {
-                //  */
-                let pc = self.peek_char();
-                Token::new(
-                    TokenType::Punctuator(TokenPunctuator::Multiply),
-                    self.line,
-                    self.column,
-                )
-            }
+            Some('*') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::Multiply),
+                self.line,
+                self.column,
+            ),
             Some('/') => {
                 //注释或者是除号
                 let pc = self.peek_char();
@@ -167,6 +163,11 @@ impl ILexer for Lexer {
                     )
                 }
             }
+            Some('%') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::Modulo),
+                self.line,
+                self.column,
+            ),
             Some('(') => Token::new(
                 TokenType::Punctuator(TokenPunctuator::LParen),
                 self.line,
@@ -244,22 +245,40 @@ impl ILexer for Lexer {
                         break;
                     }
                 }
-                return Token::new(TokenType::Literal(result), line, self.column);
+                return Token::new(
+                    TokenType::Literal(result.clone(), format!("\"{}\"", result)),
+                    line,
+                    self.column,
+                );
             }
-            // Some('`') => {
-            //     self.read_char();
-            //     let mut result = String::new();
-            //     let line = self.line;
-            //     while let Some(ch) = self.ch {
-            //         result.push(ch);
-            //         self.read_char();
-            //         if self.ch == Some('`') {
-            //             self.read_char();
-            //             break;
-            //         }
-            //     }
-            //     return Token::new(TokenType::TemplateLiteral(result), line, self.column);
-            // }
+            Some('`') => {
+                self.read_char();
+                let mut result = String::new();
+                let line = self.line;
+                while let Some(ch) = self.ch {
+                    if ch == '\n' {
+                        if let Some(last_char) = result.chars().last() {
+                            if last_char == '\\' {
+                                self.read_char();
+                                continue;
+                            }
+                        } else {
+                            println!("Unexpected token ILLEGAL");
+                        }
+                    }
+                    result.push(ch);
+                    self.read_char();
+                    if self.ch == Some('"') {
+                        self.read_char();
+                        break;
+                    }
+                }
+                return Token::new(
+                    TokenType::Literal(result.clone(), format!("'{}'", result)),
+                    line,
+                    self.column,
+                );
+            }
             Some('&') => {
                 let pc = self.peek_char();
                 if pc == Some('&') {
@@ -313,7 +332,11 @@ impl ILexer for Lexer {
             }
             Some(ch) if ch.is_digit(10) => {
                 let (num, line) = self.read_number();
-                return Token::new(TokenType::Literal(num), line, self.column);
+                return Token::new(
+                    TokenType::Literal(num.clone(), num.to_string()),
+                    line,
+                    self.column,
+                );
             }
             Some(ch) if ch.is_alphabetic() => {
                 let (ident, line) = self.read_identifier();
@@ -389,7 +412,7 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
-                    "function"=>{
+                    "function" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Function),
                             line,

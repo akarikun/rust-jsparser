@@ -39,7 +39,7 @@ impl Parser {
         while self.current_token.typ != TokenType::EOF {
             for expr in self.parse_statement(count, is_skip_semicolon)? {
                 match expr {
-                    Expr::Empty | Expr::Identifier(_) | Expr::Literal(_) => {}
+                    Expr::Empty | Expr::Identifier(_) | Expr::Literal(_, _) => {}
                     Expr::Unexpected(msg) => {
                         return Err(format!("{}", self.err("Unexpected token")));
                     }
@@ -463,6 +463,9 @@ impl Parser {
                     line = 0;
                     self.next_token();
                 }
+                if expr.len() == 0 {
+                    return Err(format!("{}", self.err("Unexpected end of input")));
+                }
                 expr1 = Expr::Expression(Box::new(expr[0].clone()));
             }
             if self.current_token.is_keyword(TokenKeyword::Else) {
@@ -587,7 +590,13 @@ impl Parser {
             if self.current_token.is_ident() {
                 return (true, Expr::Identifier(self.current_token.raw.clone()));
             } else if self.current_token.is_literal() {
-                return (true, Expr::Literal(self.current_token.raw.clone()));
+                return (
+                    true,
+                    Expr::Literal(
+                        self.current_token.raw.trim_matches('"').to_string(),
+                        self.current_token.raw.clone(),
+                    ),
+                );
             }
             // else if self.current_token.is_template_literal() {
             //     return (true, Expr::TemplateLiteral(self.current_token.raw.clone()));
@@ -617,7 +626,7 @@ impl Parser {
                 self.next_token();
                 let t = self.get_operator(&op);
                 match &left {
-                    Expr::Identifier(_) | Expr::Literal(_) /*| Expr::TemplateLiteral(_) */ => {
+                    Expr::Identifier(_) | Expr::Literal(_,_) /*| Expr::TemplateLiteral(_) */ => {
                         *left = Expr::Infix(Box::new(left.clone()), t, Box::new(expr.clone()));
                     }
                     Expr::Infix(_left, _op, _right) => {
@@ -687,7 +696,14 @@ impl Parser {
             if token.is_ident() {
                 return Expr::Identifier(token.raw.clone());
             } else if token.is_literal() {
-                return Expr::Literal(token.raw.clone());
+                if token.raw.starts_with('"') | token.raw.starts_with('\'') {
+                    return Expr::Literal(
+                        token.raw.trim_matches('"').to_string(),
+                        token.raw.clone(),
+                    );
+                } else {
+                    return Expr::Literal(token.raw.clone(), token.raw.clone());
+                }
             }
             /*else if token.is_template_literal() {
                 return Expr::TemplateLiteral(token.raw.clone());
@@ -773,6 +789,7 @@ impl IParse for Parser {
                 TokenPunctuator::Minus => Operator::Subtract,
                 TokenPunctuator::Multiply => Operator::Multiply,
                 TokenPunctuator::Divide => Operator::Divide,
+                TokenPunctuator::Modulo => Operator::Modulo,
                 TokenPunctuator::Or => Operator::Or,
                 TokenPunctuator::And => Operator::And,
                 TokenPunctuator::Not => Operator::Not,
@@ -797,6 +814,7 @@ impl IParse for Parser {
         match typ {
             TokenType::Punctuator(t) => match &t {
                 TokenPunctuator::Plus | TokenPunctuator::Minus => Precedence::Sum,
+                TokenPunctuator::Modulo => Precedence::Modulo,
                 TokenPunctuator::Multiply | TokenPunctuator::Divide => Precedence::Product,
                 TokenPunctuator::Or => Precedence::Or,
                 TokenPunctuator::And => Precedence::And,
@@ -819,6 +837,7 @@ impl IParse for Parser {
         match typ {
             Operator::Plus | Operator::Subtract => Precedence::Sum,
             Operator::Multiply | Operator::Divide => Precedence::Product,
+            Operator::Modulo => Precedence::Modulo,
             _ => unreachable!(),
         }
     }
@@ -837,6 +856,7 @@ enum Precedence {
     BitAnd,     // &
     Shift,      // <<, >>
     Sum,        // + -
+    Modulo,     // %
     Product,    // * /
     Prefix,     //
 }

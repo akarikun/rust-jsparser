@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, collections::HashMap};
+use std::{borrow::BorrowMut, collections::HashMap, os::raw};
 
 use super::expr::{Expr, Operator};
 
@@ -94,7 +94,10 @@ impl Program {
                     _ => todo!("{:?}", &op),
                 };
             }
-            Expr::Literal(val) => {
+            Expr::Literal(val,raw) => {
+                if raw.starts_with('"') || raw.starts_with('\'') {
+                    return Ok(JSType::String(val.to_string()));
+                }
                 let i = val.parse::<i64>();
                 if !i.is_err() {
                     return Ok(JSType::Int(i.unwrap()));
@@ -129,7 +132,7 @@ impl Program {
                 for (i, expr2) in expr.iter().enumerate() {
                     if matches!(
                         expr2,
-                        Expr::Identifier(_) | Expr::Literal(_) | Expr::Call(_, _)
+                        Expr::Identifier(_) | Expr::Literal(_,_) | Expr::Call(_, _)
                     ) {
                         let result = self.parse(index, &expr2.clone())?;
                         args.push(result.clone());
@@ -183,7 +186,7 @@ impl Program {
                 }
             },
             Expr::BlockStatement(expr) => {
-                // dbg!(&expr);
+                self.update_index(&mut index, true);
                 let mut ret = false;
                 for i in expr {
                     if matches!(i, Expr::Return(_)) {
@@ -191,9 +194,11 @@ impl Program {
                     }
                     let result = self.parse(index, i);
                     if ret {
+                        self.update_index(&mut index, false);
                         return result;
                     }
                 }
+                self.update_index(&mut index, false);
             }
             Expr::Assignment(ident, value) => {
                 let result = self.parse(index, value.as_ref())?;
@@ -233,8 +238,23 @@ impl Program {
                     return Err(format!("暂不支持其他表达式"));
                 }
             }
+            Expr::If(e, left, right) => {
+                let result = self.parse(index, e)?;
+                if let JSType::Bool(r) = result {
+                    if r {
+                        self.parse(index, left.as_ref())?;
+                    } else {
+                        self.parse(index, right.as_ref())?;
+                    }
+                } else {
+                    return Err(format!("if解析异常"));
+                }
+            }
+            Expr::Expression(expr) => {
+                let _ = self.parse(index, expr);
+            }
             _ => {
-                panic!("  parse => {:?}", e);
+                return Err(format!("未知解析,{:?}", e));
             }
         }
         Ok(JSType::NULL)
@@ -258,24 +278,6 @@ impl Program {
                     return None;
                 }
             }
-            Expr::If(e, left, right) => {
-                if let Ok(result) = self.parse(index, e) {
-                    if let JSType::Bool(r) = result {
-                        if r {
-                            if let Expr::BlockStatement(expr) = left.as_ref() {
-                                self.eval_list(expr.clone());
-                            }
-                        } else {
-                            if let Expr::BlockStatement(expr) = right.as_ref() {
-                                self.eval_list(expr.clone());
-                            }
-                        }
-                    } else {
-                        panic!("{:?}", result);
-                    }
-                } else {
-                }
-            }
             Expr::Function(_, _, _) => {
                 //这里要跳过方法声明
                 return None;
@@ -284,7 +286,9 @@ impl Program {
                 self.eval_list(expr.clone());
             }
             _ => {
-                self.parse(index, stmt);
+                if let Err(msg) = self.parse(index, stmt) {
+                    return Some(format!("{}", msg));
+                }
             }
         }
         None
