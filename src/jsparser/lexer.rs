@@ -540,7 +540,7 @@ impl Lexer {
     }
 
     pub fn print(&mut self) {
-        println!("/*--------print--------*/");
+        println!("\n/*--------print--------*/");
         let mut p = Lexer::new(self.input.clone());
         let mut line = 0;
         loop {
@@ -554,6 +554,6 @@ impl Lexer {
             line = tok.line;
             print!("{}", tok);
         }
-        println!("\n/*-------- end --------*/");
+        println!("\n/*-------- end --------*/\n");
     }
 }

@@ -285,7 +285,6 @@ impl Parser {
                 }
             }
             self.next_token();
-            // let last_line = self.current_token.line;
             let expr = self.base_analyze()?;
             v.push(Expr::Assignment(token.raw.clone(), Box::new(expr)));
             if self.current_token.is_ptor(TokenPunctuator::Comma) {

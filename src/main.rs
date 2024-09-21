@@ -6,31 +6,23 @@ use std::time::Instant;
 //最好每个语句最后结尾使用;结束
 fn main() -> Result<(), String> {
     let input = r#"
-    log(a+1);
-    log(a+1+a*2-a);
-    log("a"+"1");
-    log("a"+2+3);
-    log(2+3);
-    log(2+3+"a");
-    if(a==1){ log("[1]:a==1"); } else{ log("[1]:a!=1"); }
-    if(a==12){ log("[2]:a==12"); } else{ log("[2]:a!=1"); }
-    log(foo2(1,2,3));
-    function foo(a,b,c){return a+b+c;}
-    function foo2(b,c){return a+b+c;}
-    log(foo(1,2,3));
-    log(foo2(2,3));
-    // log(foo3(1,2,3));//执行到这里报错后不执行后面的语句
-    log(a+1);
-    log(add(100,200));
     log(add(add(1,2),add(3,4,5)));
+    test(11);
+    function test(val){
+        for(let i = 0;i<10;i++){
+            log("test:"+(i+val+a));
+        }
+    }
+    log(foo3(1,2,3));//执行到这里报错后不执行后面的语句
+    test(11);
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
-    lexer.print(); //打印token
+    // lexer.print(); //打印token
     let mut parser = Parser::new(Box::new(lexer));
 
     let mut program = parser.parse_program()?;
-    program.print_tree(); //打印树
+    // program.print_tree(); //打印树
     program.bind_value(String::from("a"), JSType::Int(12));
     program.register_method(
         String::from("log"),
