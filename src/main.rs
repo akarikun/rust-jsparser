@@ -6,22 +6,21 @@ use std::time::Instant;
 //最好每个语句最后结尾使用;结束
 fn main() -> Result<(), String> {
     let input = r#"
+    log("a")
     log(a)
     log(add(add(1,2),add(3,4,5)));
     test(11);
     function test(val){
         for(let i = 0;i<10;i++){
-            if (i%2!=0)
+            if (i%2==0)
                 log("test:"+i+" "+(i+val+a))
             else
                 log("test:"+i+" "+(i-val-a));
         }
     }
     log("------");
-    test(22);
-    log("------");
     log(val);//val is not defined 执行到这里报错后不执行后面的语句
-    test(33);
+    test(22);
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));

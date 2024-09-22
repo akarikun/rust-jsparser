@@ -6,22 +6,21 @@ ast树参考 [parse.html](https://esprima.org/demo/parse.html)
 ```
 fn main() -> Result<(), String> {
     let input = r#"
+    log("a")
     log(a)
     log(add(add(1,2),add(3,4,5)));
     test(11);
     function test(val){
         for(let i = 0;i<10;i++){
-            if (i%2!=0)
+            if (i%2==0)
                 log("test:"+i+" "+(i+val+a))
             else
                 log("test:"+i+" "+(i-val-a));
         }
     }
     log("------");
-    test(22);
-    log("------");
     log(val);//val is not defined 执行到这里报错后不执行后面的语句
-    test(33);
+    test(22);
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
@@ -65,30 +64,20 @@ fn main() -> Result<(), String> {
 ```
 
 ```
-  log => [Int(12)]
+ log => [String("a")]
+ log => [Int(12)]
  log => [Int(15)]
- log => [String("test:0, -23")]
- log => [String("test:1, 24")]
- log => [String("test:2, -21")]
- log => [String("test:3, 26")]
- log => [String("test:4, -19")]
- log => [String("test:5, 28")]
- log => [String("test:6, -17")]
- log => [String("test:7, 30")]
- log => [String("test:8, -15")]
- log => [String("test:9, 32")]
- log => [String("------")]
- log => [String("test:0, -34")]
- log => [String("test:1, 35")]
- log => [String("test:2, -32")]
- log => [String("test:3, 37")]
- log => [String("test:4, -30")]
- log => [String("test:5, 39")]
- log => [String("test:6, -28")]
- log => [String("test:7, 41")]
- log => [String("test:8, -26")]
- log => [String("test:9, 43")]
+ log => [String("test:0, 23")]
+ log => [String("test:1, -22")]
+ log => [String("test:2, 25")]
+ log => [String("test:3, -20")]
+ log => [String("test:4, 27")]
+ log => [String("test:5, -18")]
+ log => [String("test:6, 29")]
+ log => [String("test:7, -16")]
+ log => [String("test:8, 31")]
+ log => [String("test:9, -14")]
  log => [String("------")]
 Uncaught ReferenceError: val is not defined
-解析耗时: 4827µs (4ms)
+解析耗时: 3309µs (3ms)
 ```

@@ -4,7 +4,7 @@ use std::fmt;
 pub enum TokenType {
     Illegal,
     EOF,
-    Literal(String, String), // 1  "a"
+    Literal(String), // 1  "a"
     // TemplateLiteral(String),  //``
     Ident(String), //a
     Punctuator(TokenPunctuator),
@@ -17,7 +17,7 @@ impl TokenType {
             TokenType::EOF => "EOF".to_string(),
             TokenType::Punctuator(t) => t.to_raw(),
             TokenType::Keyword(t) => t.to_raw(),
-            TokenType::Literal(_,t) => t.to_string(),
+            TokenType::Literal(t) => t.to_string(),
             // TokenType::TemplateLiteral(_) => todo!(),
             TokenType::Ident(t) => t.to_string(),
         }
@@ -342,7 +342,7 @@ impl Token {
     }
     pub fn is_literal(&self) -> bool {
         match &self.typ {
-            TokenType::Literal(_,_) => true,
+            TokenType::Literal(_) => true,
             _ => false,
         }
     }
@@ -365,7 +365,7 @@ impl std::fmt::Display for Token {
             TokenType::Ident(t) => write!(f, "<\x1b[31m{}\x1b[39m> ", t),
             TokenType::Punctuator(t) => write!(f, "<\x1b[36m{}\x1b[39m> ", t.to_raw()),
             TokenType::Keyword(t) => write!(f, "<key:\x1b[33m{}\x1b[39m> ", t),
-            TokenType::Literal(_,t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
+            TokenType::Literal(t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
             // TokenType::TemplateLiteral(t) => write!(f, "<temp:\x1b[33m{}\x1b[39m> ", t),
         }
     }

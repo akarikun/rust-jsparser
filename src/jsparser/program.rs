@@ -1,13 +1,13 @@
-use std::{borrow::BorrowMut, collections::HashMap, os::raw};
+use std::{borrow::BorrowMut, collections::HashMap, os::raw, result};
 
-use super::expr::{Expr, Operator};
+use super::expr::{Expr, Operator, Variable};
 
 pub struct Program {
     statements: Vec<Expr>,
     global_fn_map: HashMap<String, Box<dyn Fn(Vec<JSType>) -> Result<JSType, String>>>, //外部注册的全局方法
     fn_map: HashMap<String, Expr>,                                                      //方法
     value_map: HashMap<String, JSType>, //外部注册的全局变量
-    local_value: HashMap<usize, HashMap<String, JSType>>, //变量
+    local_value: HashMap<usize, HashMap<String, (Variable, JSType)>>, //变量
     call_value: Vec<Vec<JSType>>,       //函数变量
 }
 
@@ -32,10 +32,42 @@ impl Program {
         }
         println!("/*-----tree-end------*/\n");
     }
-    ///会初始先加载全局方法
+
     pub fn run(&mut self) {
-        self.init_function(self.statements.clone());
-        self.eval_list(self.statements.clone());
+        //需要最先加载所有方法
+        for (_, expr) in self.statements.clone().iter().enumerate() {
+            match &expr {
+                Expr::Function(ident, _, _) => {
+                    //首次运行时,需要先注册全局函数
+                    if let Expr::Identifier(t) = ident.as_ref() {
+                        self.fn_map.insert(t.clone(), expr.clone());
+                    } else {
+                        panic!("expr::function");
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (_, expr) in self.statements.clone().iter().enumerate() {
+            match &expr {
+                Expr::Function(_, _, _) => {
+                    //这里要跳过function,当call执行时才会调用
+                    continue;
+                }
+                _ => {
+                    let result = self.parse(0, expr);
+                    match result {
+                        Ok(res) => {
+                            // println!("{}")
+                        }
+                        Err(msg) => {
+                            println!("\x1b[31m{}\x1b[39m", msg);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
     }
     pub fn register_method(
         &mut self,
@@ -48,21 +80,46 @@ impl Program {
         self.value_map.insert(ident, value);
     }
 
-    fn bind_local_args(&mut self, index: usize, args: &Vec<Expr>) {
+    fn bind_local_args(&mut self, index: usize, typ: Variable, args: &Vec<Expr>) {
+        // dbg!(&self.call_value);
         let arr = self.call_value.pop().unwrap();
         let mut map = HashMap::new();
         for (i, e) in args.iter().enumerate() {
             if let Expr::Identifier(t) = e {
-                map.insert(t.clone(), arr[i].clone());
+                map.insert(t.clone(), (typ.clone(), arr[i].clone()));
             }
         }
         self.local_value.insert(index, map);
     }
-    fn bind_local_arg(&mut self, index: usize, ident: String, expr: JSType) {
-        self.local_value
-            .get_mut(&index)
-            .unwrap()
-            .insert(ident, expr.clone());
+    fn bind_local_arg(
+        &mut self,
+        index: usize,
+        typ: Option<Variable>,
+        ident: String,
+        expr: JSType,
+    ) -> Result<JSType, String> {
+        if let Some(v) = typ {
+            if let Some(v2) = self.local_value.get_key_value(&index) {
+                if let Some(v3) = v2.1.get_key_value(&ident) {
+                    if !(matches!(v3.1 .0, Variable::Var) && matches!(v, Variable::Var)) {
+                        return Err(format!(
+                            "Uncaught SyntaxError: Identifier '{}' has already been declared",
+                            ident
+                        ));
+                    }
+                }
+            };
+
+            let mut map = HashMap::new();
+            map.insert(ident.clone(), (v.clone(), expr.clone()));
+            _ = self.local_value.insert(index, map);
+            return Ok(expr.clone());
+        } else {
+            let mut map = HashMap::new();
+            map.insert(ident.clone(), (Variable::Var, expr.clone()));
+            _ = self.local_value.insert(index, map);
+            return Ok(expr.clone());
+        }
     }
     /// index层级变化时调用
     fn update_index(&mut self, index: &mut usize, is_inc: bool) {
@@ -74,6 +131,7 @@ impl Program {
             *index -= 1;
         }
     }
+    ///语法解析及执行，使用递归处理所有语句
     fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
         match e {
             Expr::Infix(_left, op, _right) => {
@@ -94,7 +152,7 @@ impl Program {
                     _ => todo!("{:?}", &op),
                 };
             }
-            Expr::Literal(val,raw) => {
+            Expr::Literal(val, raw) => {
                 if raw.starts_with('"') || raw.starts_with('\'') {
                     return Ok(JSType::String(val.to_string()));
                 }
@@ -109,21 +167,24 @@ impl Program {
                 return Ok(JSType::String(val.clone()));
             }
             Expr::Identifier(t) => {
-                let mut index = index.clone() as i32;
+                let last_index = index;
+                let mut index = index as i32;
                 loop {
                     if let Some(val) = self.local_value.get(&(index as usize)) {
                         if let Some(v) = val.get(t) {
-                            return Ok(v.clone());
+                            return Ok(v.1.clone());
                         }
                     }
                     index -= 1;
-                    if index < -1 {
+                    if index <= -1 {
                         break;
                     }
                 }
                 if let Some(val) = self.value_map.get(t) {
                     return Ok(val.clone());
                 }
+                // dbg!(&last_index);
+                // dbg!(&index);
                 // dbg!(&self.local_value);
                 return Err(format!("Uncaught ReferenceError: {} is not defined", t));
             }
@@ -132,7 +193,7 @@ impl Program {
                 for (i, expr2) in expr.iter().enumerate() {
                     if matches!(
                         expr2,
-                        Expr::Identifier(_) | Expr::Literal(_,_) | Expr::Call(_, _)
+                        Expr::Identifier(_) | Expr::Literal(_, _) | Expr::Call(_, _)
                     ) {
                         let result = self.parse(index, &expr2.clone())?;
                         args.push(result.clone());
@@ -147,12 +208,12 @@ impl Program {
                 if let Expr::Identifier(ident) = ee.as_ref().clone() {
                     self.call_value.push(args.clone());
                     if let Some(e) = self.fn_map.get(&ident) {
-                        let result = self.parse(index, &e.clone());
+                        let result = self.parse(index, &e.clone())?;
                         // dbg!(&result);
                         if self.local_value.len() > 0 {
                             self.local_value.remove(&(self.local_value.len() - 1));
                         }
-                        return result;
+                        return Ok(result);
                     } else if let Some(e) = self.global_fn_map.get(&ident) {
                         return e(args.clone());
                     } else {
@@ -162,14 +223,13 @@ impl Program {
             }
             Expr::Function(ident, args, body) => {
                 //处理函数调用后的实现功能
+
                 self.update_index(&mut index, true);
-                self.bind_local_args(index, args);
+                self.bind_local_args(index, Variable::Var, args);
                 if let Expr::Identifier(id) = ident.as_ref() {
-                    let result = self.parse(index, body.as_ref());
-                    // dbg!(&result);
-                    self.bind_local_args(index, args);
+                    let result = self.parse(index, body.as_ref())?;
                     self.update_index(&mut index, false);
-                    return result;
+                    return Ok(result);
                 } else {
                     dbg!(&ident);
                     panic!("功能暂未实现")
@@ -192,31 +252,32 @@ impl Program {
                     if matches!(i, Expr::Return(_)) {
                         ret = true;
                     }
-                    let result = self.parse(index, i);
+                    let result = self.parse(index, i)?;
                     if ret {
                         self.update_index(&mut index, false);
-                        return result;
+                        return Ok(result);
                     }
                 }
                 self.update_index(&mut index, false);
             }
             Expr::Assignment(ident, value) => {
                 let result = self.parse(index, value.as_ref())?;
-                self.bind_local_arg(index, ident.clone(), result);
+                let _ = self.bind_local_arg(index, Some(Variable::Var), ident.clone(), result)?;
             }
             Expr::Variable(variable, ident, value) => {
                 let result = self.parse(index, value.as_ref())?;
-                self.bind_local_arg(index, ident.clone(), result);
-                //还需要判断variable类型
+                let _ =
+                    self.bind_local_arg(index, Some(variable.clone()), ident.clone(), result)?;
             }
-            Expr::For(init, test, update, block) => {
+            Expr::For(init, test, update, body) => {
+                // println!("{:?}", e);
                 self.update_index(&mut index, true);
                 let init = self.parse(index, init.as_ref())?;
                 loop {
                     let test = self.parse(index, test.as_ref())?;
                     if let JSType::Bool(flag) = test {
                         if flag {
-                            self.parse(index, block)?;
+                            self.parse(index, body)?;
                             self.parse(index, update)?;
                         } else {
                             break;
@@ -233,7 +294,7 @@ impl Program {
             Expr::Update(ident, op, _) => {
                 let val = self.parse(index, &ident)?.INC()?;
                 if let Expr::Identifier(id) = ident.as_ref() {
-                    self.bind_local_arg(index, id.clone(), val);
+                    self.bind_local_arg(index, None, id.clone(), val)?;
                 } else {
                     return Err(format!("暂不支持其他表达式"));
                 }
@@ -251,64 +312,13 @@ impl Program {
                 }
             }
             Expr::Expression(expr) => {
-                let _ = self.parse(index, expr);
+                let _ = self.parse(index, expr)?;
             }
             _ => {
-                return Err(format!("未知解析,{:?}", e));
+                return Err(format!("功能暂未完成,{:?}", e));
             }
         }
         Ok(JSType::NULL)
-    }
-    fn eval_list(&mut self, stmt: Vec<Expr>) {
-        for (_, expr) in stmt.iter().enumerate() {
-            if let Some(msg) = self.eval(0, expr) {
-                println!("\x1b[31m{}\x1b[39m", msg);
-                return;
-            }
-        }
-    }
-    fn eval(&mut self, mut index: usize, stmt: &Expr) -> Option<String> {
-        match &stmt {
-            Expr::Call(_, _) => {
-                let result = self.parse(index, stmt);
-                if let Err(msg) = result {
-                    return Some(msg);
-                } else {
-                    // dbg!(&result);
-                    return None;
-                }
-            }
-            Expr::Function(_, _, _) => {
-                //这里要跳过方法声明
-                return None;
-            }
-            Expr::BlockStatement(expr) => {
-                self.eval_list(expr.clone());
-            }
-            _ => {
-                if let Err(msg) = self.parse(index, stmt) {
-                    return Some(format!("{}", msg));
-                }
-            }
-        }
-        None
-    }
-
-    ///需要最先加载方法
-    fn init_function(&mut self, stmt: Vec<Expr>) {
-        for (_, expr) in stmt.iter().enumerate() {
-            match &expr {
-                Expr::Function(ident, _, _) => {
-                    //只处理声明函数
-                    if let Expr::Identifier(t) = ident.as_ref() {
-                        self.fn_map.insert(t.clone(), expr.clone());
-                    } else {
-                        panic!("expr::function");
-                    }
-                }
-                _ => {}
-            }
-        }
     }
 }
 

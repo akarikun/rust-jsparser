@@ -246,7 +246,7 @@ impl ILexer for Lexer {
                     }
                 }
                 return Token::new(
-                    TokenType::Literal(result.clone(), format!("\"{}\"", result)),
+                    TokenType::Literal(format!("\"{}\"", result)),
                     line,
                     self.column,
                 );
@@ -274,7 +274,7 @@ impl ILexer for Lexer {
                     }
                 }
                 return Token::new(
-                    TokenType::Literal(result.clone(), format!("'{}'", result)),
+                    TokenType::Literal(format!("'{}'", result)),
                     line,
                     self.column,
                 );
@@ -333,7 +333,7 @@ impl ILexer for Lexer {
             Some(ch) if ch.is_digit(10) => {
                 let (num, line) = self.read_number();
                 return Token::new(
-                    TokenType::Literal(num.clone(), num.to_string()),
+                    TokenType::Literal(num.to_string()),
                     line,
                     self.column,
                 );
