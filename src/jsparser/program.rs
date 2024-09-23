@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, collections::HashMap, os::raw, result};
+use std::{collections::HashMap};
 
 use super::expr::{Expr, Operator, Variable};
 
@@ -26,11 +26,11 @@ impl Program {
     }
 
     pub fn print_tree(&self) {
-        println!("\n/*--------tree--------*/");
+        println!("/*--------tree--------*/");
         for (index, stmt) in self.statements.iter().enumerate() {
             println!("({}) | {:?}", index + 1, stmt);
         }
-        println!("/*-----tree-end------*/\n");
+        println!("/*-----tree-end------*/");
     }
 
     pub fn run(&mut self) {
@@ -131,6 +131,7 @@ impl Program {
             *index -= 1;
         }
     }
+
     ///语法解析及执行，使用递归处理所有语句
     fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
         match e {
@@ -263,6 +264,12 @@ impl Program {
             Expr::Assignment(ident, value) => {
                 let result = self.parse(index, value.as_ref())?;
                 let _ = self.bind_local_arg(index, Some(Variable::Var), ident.clone(), result)?;
+            }
+            Expr::Variable2(v) => {
+                for i in v {
+                    let result = self.parse(index, &i.2.clone())?;
+                    let _ = self.bind_local_arg(index, Some(i.0.clone()), i.1.clone(), result)?;
+                }
             }
             Expr::Variable(variable, ident, value) => {
                 let result = self.parse(index, value.as_ref())?;

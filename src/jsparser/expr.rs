@@ -6,6 +6,7 @@ pub enum Expr {
     Identifier(String),
 
     TemplateLiteral(Box<Expr>, Box<Expr>), //``
+    Literal2(String),//保留原始raw    标记为2的表示未确定最终格式，最后需要统一规划
     Literal(String,String),
     Assignment(String, Box<Expr>), // a=b
     // Prefix(Prefix, Box<Expr>),     // !a  -1
@@ -17,6 +18,8 @@ pub enum Expr {
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
     Update(Box<Expr>, String, bool),       //a++/++a     bool:存放++的前后位置
     Variable(Variable, String, Box<Expr>), //let a =
+    Variable2(Vec<(Variable,String,Expr)>),
+    Assignment2(Vec<(String,Expr)>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),   //if
     BlockStatement(Vec<Expr>),
     Expression(Box<Expr>),

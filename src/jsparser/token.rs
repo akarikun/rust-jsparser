@@ -275,6 +275,21 @@ impl Token {
             _ => false,
         }
     }
+    pub fn is_complex(&self) -> bool {
+        if self.is_precedence() {
+            return true;
+        }
+        match &self.typ {
+            TokenType::Punctuator(t) => match &t {
+                TokenPunctuator::LCParen
+                | TokenPunctuator::LParen
+                | TokenPunctuator::LSParen
+                | TokenPunctuator::Dot => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
     pub fn is_binary(&self) -> bool {
         match &self.typ {
             TokenType::Punctuator(t) => match &t {
@@ -346,8 +361,12 @@ impl Token {
             _ => false,
         }
     }
+    /// 这个表达式只能做+运算
     pub fn is_ident_num_is_literal_template(&self) -> bool {
         self.is_ident() || self.is_literal() || self.is_literal() || self.is_template_literal()
+    }
+    pub fn is_ident_num(&self) -> bool {
+        self.is_ident() || self.is_literal() || self.is_literal()
     }
     pub fn is_template_literal(&self) -> bool {
         match &self.typ {
