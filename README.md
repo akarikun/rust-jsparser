@@ -9,9 +9,9 @@ ast树参考 [parse.html](https://esprima.org/demo/parse.html)
 解析token
 |表达式| 标记 | 备注|解析前提条件|
 |-|-|-|-|
-|a+b ...|< base_expr >|四则运算,bool表达式等，a(),a[1]这种都属于<br/>这里是最复杂的，还需要考虑a()\[1]()[1]...这种套娃的还有a.b这种复合类型等|cur=ident <br /> peek= +-*/[(.等|
-|i = < base_expr >|< MOV >|由于已经解析了base_expr，当cur,peek符合条件后<br />再从当前函数中取返回值|cur=ident <br /> peek=mov|
-|let i = < base_expr >|let < MOV >|同上，满足cur跟peek后还要再读取下个token符合'='后<br />再从当前函数中取返回值|cur=< key:let ><br/>peek=ident|
+|a+b|< base_expr >|四则运算,bool表达式等，a(),a[1]这种都属于<br/>这里是最复杂的，还需要考虑a()\[1]()[1]...这种套娃的还有a.b这种复合类型等|cur=ident <br /> peek= +-*/[(.等|
+|i = a+b 相当于 i=< base_expr > |< MOV >|由于已经解析了base_expr，当cur,peek符合条件后<br />再从当前函数中取返回值|cur=ident <br /> peek=mov|
+|let i = a+b 相当于 let < MOV >|< var >|同上，满足cur跟peek后还要再读取下个token符合'='后<br />再从当前函数中取返回值|cur=< key:let ><br/>peek=ident|
 ```
 mod jsparser;
 use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
@@ -87,7 +87,8 @@ fn main() -> Result<(), String> {
 <}>
 <log> <(> <"------"> <)> <;>
 <log> <(> <val> <)> <;>
-<test> <(> <22> <)> <;> /*-------- end --------*/
+<test> <(> <22> <)> <;>
+/*-------- end --------*/
 /*--------tree--------*/
 (1) | Call(Identifier("log"), [Call(Identifier("add"), [Call(Identifier("add"), [Literal("1", "1"), Literal("2", "2"), Literal("3", "3")]), Call(Identifier("add"), [Literal("4", "4"), Literal("5", "5")])])])
 (2) | Call(Identifier("test"), [Literal("11", "11")])
@@ -109,5 +110,5 @@ fn main() -> Result<(), String> {
  log => [String("test:9, -14")]
  log => [String("------")]
 Uncaught ReferenceError: val is not defined
-解析耗时: 5610µs (5ms)
+解析耗时: 5881µs (5ms)
 ```

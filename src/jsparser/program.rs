@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use super::expr::{Expr, Operator, Variable};
 
@@ -516,12 +516,7 @@ impl JSType {
 
     pub fn INC(&self) -> Result<JSType, String> {
         match self {
-            // JSType::Void =>Err(format!("Uncaught SyntaxError: Invalid left-hand side expression in postfix operation")),
-            // JSType::NULL =>Err(format!("Uncaught SyntaxError: Invalid left-hand side expression in postfix operation")),
             JSType::Int(t) => Ok(JSType::Int(t + 1)),
-            JSType::Float(t) => Ok(JSType::Float(t + 1.0)),
-            // JSType::String(_) => todo!(),
-            // JSType::Bool(_) => todo!(),//
             _ => Err(format!(
                 "Uncaught SyntaxError: Invalid left-hand side expression in postfix operation"
             )),
@@ -529,12 +524,7 @@ impl JSType {
     }
     pub fn DEC(&self) -> Result<JSType, String> {
         match self {
-            // JSType::Void =>Err(format!("Uncaught SyntaxError: Invalid left-hand side expression in postfix operation")),
-            // JSType::NULL =>Err(format!("Uncaught SyntaxError: Invalid left-hand side expression in postfix operation")),
             JSType::Int(t) => Ok(JSType::Int(t - 1)),
-            JSType::Float(t) => Ok(JSType::Float(t - 1.0)),
-            // JSType::String(_) => todo!(),
-            // JSType::Bool(_) => todo!(),//
             _ => Err(format!(
                 "Uncaught SyntaxError: Invalid left-hand side expression in postfix operation"
             )),

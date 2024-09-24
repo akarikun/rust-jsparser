@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use super::token::{Token, TokenKeyword, TokenPunctuator, TokenType};
 
 pub trait ILexer {
@@ -15,25 +13,6 @@ pub struct Lexer {
     line: usize,                     // 当前行号
     column: usize,                   // 当前列号
 }
-
-pub struct TokenList {
-    list: Rc<RefCell<Vec<Token>>>,
-}
-impl ILexer for TokenList {
-    fn next_token(&mut self) -> Token {
-        if self.list.borrow_mut().len() == 0 {
-            Token::new(TokenType::EOF, 0, 0)
-        } else {
-            self.list.borrow_mut().remove(0)
-        }
-    }
-}
-impl TokenList {
-    pub fn new(list: Rc<RefCell<Vec<Token>>>) -> Self {
-        TokenList { list }
-    }
-}
-
 impl ILexer for Lexer {
     fn next_token(&mut self) -> Token {
         self.skip_whitespace();

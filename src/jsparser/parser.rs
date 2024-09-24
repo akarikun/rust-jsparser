@@ -1,8 +1,6 @@
-use std::{cell::RefCell, f32::consts::E, io::SeekFrom, rc::Rc, vec};
-
 use super::{
     expr::{Expr, Operator, Unary, Variable},
-    lexer::{ILexer, TokenList},
+    lexer::ILexer,
     program::Program,
     token::{Token, TokenKeyword, TokenPunctuator, TokenType},
 };
