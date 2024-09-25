@@ -6,9 +6,9 @@ pub struct Program {
     statements: Vec<Expr>,
     global_fn_map: HashMap<String, Box<dyn Fn(Vec<JSType>) -> Result<JSType, String>>>, //外部注册的全局方法
     fn_map: HashMap<String, Expr>,                                                      //方法
-    value_map: HashMap<String, JSType>, //外部注册的全局变量
+    global_value_map: HashMap<String, JSType>, //外部注册的全局变量
     local_value: HashMap<usize, HashMap<String, (Variable, JSType)>>, //变量
-    call_value: Vec<Vec<JSType>>,       //函数变量
+    call_value: Vec<Vec<JSType>>,              //函数变量
 }
 
 impl Program {
@@ -19,7 +19,7 @@ impl Program {
             statements: statements,
             global_fn_map: HashMap::new(),
             fn_map: HashMap::new(),
-            value_map: HashMap::new(),
+            global_value_map: HashMap::new(),
             local_value,
             call_value: Vec::new(),
         }
@@ -77,7 +77,7 @@ impl Program {
         self.global_fn_map.insert(ident, callback);
     }
     pub fn bind_value(&mut self, ident: String, value: JSType) {
-        self.value_map.insert(ident, value);
+        self.global_value_map.insert(ident, value);
     }
 
     fn bind_local_args(&mut self, index: usize, typ: Variable, args: &Vec<Expr>) {
@@ -102,10 +102,10 @@ impl Program {
             if let Some(v2) = self.local_value.get_key_value(&index) {
                 if let Some(v3) = v2.1.get_key_value(&ident) {
                     if !(matches!(v3.1 .0, Variable::Var) && matches!(v, Variable::Var)) {
-                        return Err(format!(
+                        return Err(self.err(&format!(
                             "Uncaught SyntaxError: Identifier '{}' has already been declared",
                             ident
-                        ));
+                        )));
                     }
                 }
             };
@@ -132,6 +132,90 @@ impl Program {
         }
     }
 
+    fn err(&self, str: &str) -> String {
+        let msg = format!(
+            //"\x1b[31m{}\x1b[39m,token:<\x1b[32m{}\x1b[39m>",
+            "{:?}\n{}",
+            self.statements.first().unwrap(),
+            str,
+        );
+        panic!("\x1b[31m{}\x1b[39m", msg);
+        return msg;
+    }
+    fn parse_call(
+        &mut self,
+        index: usize,
+        ee: &Box<Expr>,
+        expr: &Vec<Expr>,
+    ) -> Result<JSType, String> {
+        let args_action = |p: &mut Self, expr: &Vec<Expr>| -> Result<Vec<JSType>, String> {
+            let mut args: Vec<JSType> = Vec::new();
+            for (i, expr2) in expr.clone().iter().enumerate() {
+                // dbg!(&expr2);
+                if matches!(
+                    expr2,
+                    Expr::Identifier(_) | Expr::Literal(_, _) | Expr::Call(_, _)
+                ) {
+                    let result = p.parse(index, &expr2.clone())?;
+                    args.push(result.clone());
+                } else if matches!(expr2, Expr::Infix(_, _, _)) {
+                    let result = p.parse(index, &expr2)?;
+                    args.push(result);
+                } else {
+                    dbg!(&expr2);
+                    panic!()
+                }
+            }
+            Ok(args)
+        };
+        if let Expr::Call(_call, _args) = ee.as_ref() {
+            dbg!(&ee);
+            let result = self.parse(index, ee)?;
+            match result {
+                JSType::Function(a, b, c) => {
+                    //最外层的args
+                    let arguments = args_action(self, &expr)?;
+                    self.call_value.push(arguments);
+                    // dbg!(&_args);
+                    // // dbg!(&ee);
+                    // // dbg!(&self.call_value);
+                    // dbg!(&expr);
+                    // dbg!(&self.call_value);
+                    // dbg!(&self.local_value);
+                    return self.parse(index, &Expr::Function(Box::new(a), b, Box::new(c)));
+                }
+                _ => return Ok(result),
+            }
+        }
+        let args = args_action(self, &expr)?;
+        if let Expr::Identifier(ident) = ee.as_ref().clone() {
+            self.call_value.push(args.clone());
+            if let Some(e) = self.fn_map.get(&ident) {
+                let result = self.parse(index, &e.clone())?;
+                if matches!(result, JSType::Function(_, _, _)) {
+                    // dbg!(&result);
+                    // dbg!(&self.call_value);
+                    // dbg!(&self.local_value);
+                    return Ok(result);
+                } else {
+                    if self.local_value.len() > 0 {
+                        self.local_value.remove(&(self.local_value.len() - 1));
+                    }
+                }
+                return Ok(result);
+            } else if let Some(e) = self.global_fn_map.get(&ident) {
+                let result = e(args.clone())?;
+                return Ok(result);
+            } else {
+                return Err(self.err(&format!(
+                    "Uncaught ReferenceError: {} is not defined",
+                    ident
+                )));
+            }
+        } else {
+            panic!("暂未实现");
+        }
+    }
     ///语法解析及执行，使用递归处理所有语句
     fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
         match e {
@@ -177,90 +261,99 @@ impl Program {
                         }
                     }
                     index -= 1;
-                    if index <= -1 {
+                    if index <= 0 {
                         break;
                     }
                 }
-                if let Some(val) = self.value_map.get(t) {
+                if let Some(val) = self.global_value_map.get(t) {
                     return Ok(val.clone());
                 }
                 // dbg!(&last_index);
                 // dbg!(&index);
                 // dbg!(&self.local_value);
-                return Err(format!("Uncaught ReferenceError: {} is not defined", t));
+                return Err(self.err(&format!("Uncaught ReferenceError: {} is not defined", t)));
             }
             Expr::Call(ee, expr) => {
-                let mut args: Vec<JSType> = Vec::new();
-                for (i, expr2) in expr.iter().enumerate() {
-                    if matches!(
-                        expr2,
-                        Expr::Identifier(_) | Expr::Literal(_, _) | Expr::Call(_, _)
-                    ) {
-                        let result = self.parse(index, &expr2.clone())?;
-                        args.push(result.clone());
-                    } else if matches!(expr2, Expr::Infix(_, _, _)) {
-                        let result = self.parse(index, &expr2)?;
-                        args.push(result);
-                    } else {
-                        dbg!(&expr2);
-                        panic!()
-                    }
-                }
-                if let Expr::Identifier(ident) = ee.as_ref().clone() {
-                    self.call_value.push(args.clone());
-                    if let Some(e) = self.fn_map.get(&ident) {
-                        let result = self.parse(index, &e.clone())?;
-                        // dbg!(&result);
-                        if self.local_value.len() > 0 {
-                            self.local_value.remove(&(self.local_value.len() - 1));
-                        }
-                        return Ok(result);
-                    } else if let Some(e) = self.global_fn_map.get(&ident) {
-                        return e(args.clone());
-                    } else {
-                        return Err(format!("Uncaught ReferenceError: {} is not defined", ident));
-                    }
-                }
+                // self.update_index(&mut index, true);
+                let result = self.parse_call(index, ee, expr)?;
+                // self.update_index(&mut index, false); //释放当前及以后层
+                return Ok(result);
             }
             Expr::Function(ident, args, body) => {
                 //处理函数调用后的实现功能
-
-                self.update_index(&mut index, true);
+                // dbg!(&index);
+                // dbg!(&self.local_value);
+                // dbg!(&self.call_value);
+                // dbg!(&ident);
+                // dbg!(&args);
+                // dbg!(&body);
                 self.bind_local_args(index, Variable::Var, args);
+                // dbg!(&ident);
+                // dbg!(&self.local_value);
                 if let Expr::Identifier(id) = ident.as_ref() {
-                    let result = self.parse(index, body.as_ref())?;
-                    self.update_index(&mut index, false);
-                    return Ok(result);
+                    // let result = self.parse(index, body.as_ref())?;
+                    match body.as_ref().clone() {
+                        // Expr::Empty => ,
+                        Expr::BlockStatement(vec) => {
+                            for i in vec {
+                                match i {
+                                    Expr::Return(expr) => {
+                                        if let Expr::Function(a, b, c) = expr.as_ref() {
+                                            // println!("{}_{:?}", id, a.as_ref());
+                                            // dbg!(b);
+                                            return Ok(JSType::Function(
+                                                a.as_ref().clone(),
+                                                b.clone(),
+                                                c.as_ref().clone(),
+                                            ));
+                                        } else if matches!(expr.as_ref(), Expr::Empty) {
+                                            return Ok(JSType::Void);
+                                        } else if matches!(
+                                            expr.as_ref(),
+                                            Expr::Identifier(_)
+                                                | Expr::Call(_, _)
+                                                | Expr::Literal(_, _)
+                                                | Expr::Infix(_, _, _)
+                                        ) {
+                                            return self.parse(index, &expr);
+                                        } else {
+                                            dbg!(&expr);
+                                            panic!("{:?}", expr);
+                                        }
+                                    }
+                                    _ => {
+                                        let _expr = self.parse(index, &i);
+                                        return _expr;
+                                    }
+                                }
+                            }
+                        }
+                        _ => panic!("{:?}", body),
+                    }
+                    // return Ok(result);
+                } else if let Expr::Empty = ident.as_ref() {
+                    return Ok(JSType::Void);
                 } else {
                     dbg!(&ident);
                     panic!("功能暂未实现")
                 }
             }
-            Expr::Return(expr) => match expr.as_ref() {
-                Expr::Empty => {
-                    return Ok(JSType::Void);
-                }
-                Expr::Infix(_, _, _) => return self.parse(index, &expr),
-                _ => {
-                    dbg!(&expr);
-                    panic!("");
-                }
-            },
-            Expr::BlockStatement(expr) => {
-                self.update_index(&mut index, true);
-                let mut ret = false;
-                for i in expr {
-                    if matches!(i, Expr::Return(_)) {
-                        ret = true;
-                    }
-                    let result = self.parse(index, i)?;
-                    if ret {
-                        self.update_index(&mut index, false);
-                        return Ok(result);
-                    }
-                }
-                self.update_index(&mut index, false);
-            }
+
+            // Expr::BlockStatement(expr) => {
+            //     self.update_index(&mut index, true);
+            //     let mut ret = false;
+            //     for i in expr {
+            //         if matches!(i, Expr::Return(_)) {
+            //             ret = true;
+            //         }
+            //         let result = self.parse(index, i)?;
+            //         if ret {
+            //             self.update_index(&mut index, false);
+            //             return Ok(result);
+            //         }
+            //     }
+            //     self.update_index(&mut index, false);
+            // }
             Expr::Assignment(ident, value) => {
                 let result = self.parse(index, value.as_ref())?;
                 let _ = self.bind_local_arg(index, Some(Variable::Var), ident.clone(), result)?;
@@ -291,7 +384,7 @@ impl Program {
                         }
                     } else {
                         dbg!(&test);
-                        return Err(format!("表达式异常"));
+                        return Err(self.err(&format!("表达式异常")));
                     }
                 }
                 self.update_index(&mut index, false);
@@ -303,7 +396,7 @@ impl Program {
                 if let Expr::Identifier(id) = ident.as_ref() {
                     self.bind_local_arg(index, None, id.clone(), val)?;
                 } else {
-                    return Err(format!("暂不支持其他表达式"));
+                    return Err(self.err(&format!("暂不支持其他表达式")));
                 }
             }
             Expr::If(e, left, right) => {
@@ -315,14 +408,20 @@ impl Program {
                         self.parse(index, right.as_ref())?;
                     }
                 } else {
-                    return Err(format!("if解析异常"));
+                    return Err(self.err(&format!("if解析异常")));
                 }
             }
             Expr::Expression(expr) => {
-                let _ = self.parse(index, expr)?;
+                return self.parse(index, expr);
+            }
+            Expr::BlockStatement(t) => {
+                for i in t {
+                    _ = self.parse(index, i);
+                }
             }
             _ => {
-                return Err(format!("功能暂未完成,{:?}", e));
+                dbg!(&e);
+                return Err(self.err(&format!("功能暂未完成,{:?}", e)));
             }
         }
         Ok(JSType::NULL)
@@ -337,6 +436,7 @@ pub enum JSType {
     Float(f64),
     String(String),
     Bool(bool),
+    Function(Expr, Vec<Expr>, Expr),
 }
 
 impl JSType {
@@ -348,6 +448,7 @@ impl JSType {
             JSType::String(t) => Ok(t.to_string()),
             JSType::Bool(t) => Ok(t.to_string()),
             JSType::Void => Ok("".to_string()),
+            JSType::Function(t, _, _) => Ok(format!("function:{}", t.to_raw())),
         }
     }
     pub fn add(&self, other: &JSType) -> Result<JSType, String> {

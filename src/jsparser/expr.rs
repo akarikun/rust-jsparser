@@ -6,8 +6,8 @@ pub enum Expr {
     Identifier(String),
 
     TemplateLiteral(Box<Expr>, Box<Expr>), //``
-    Literal2(String),//保留原始raw    标记为2的表示未确定最终格式，最后需要统一规划
-    Literal(String,String),
+    Literal2(String), //保留原始raw    标记为2的表示未确定最终格式，最后需要统一规划
+    Literal(String, String),
     Assignment(String, Box<Expr>), // a=b
     // Prefix(Prefix, Box<Expr>),     // !a  -1
     Call(Box<Expr>, Vec<Expr>), // a()  a.b()
@@ -18,9 +18,9 @@ pub enum Expr {
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
     Update(Box<Expr>, String, bool),       //a++/++a     bool:存放++的前后位置
     Variable(Variable, String, Box<Expr>), //let a =
-    Variable2(Vec<(Variable,String,Expr)>),
-    Assignment2(Vec<(String,Expr)>),
-    If(Box<Expr>, Box<Expr>, Box<Expr>),   //if
+    Variable2(Vec<(Variable, String, Expr)>),
+    Assignment2(Vec<(String, Expr)>),
+    If(Box<Expr>, Box<Expr>, Box<Expr>), //if
     BlockStatement(Vec<Expr>),
     Expression(Box<Expr>),
     Return(Box<Expr>),
@@ -30,6 +30,40 @@ pub enum Expr {
     Break,
     Continue,
     Function(Box<Expr>, Vec<Expr>, Box<Expr>), //function
+}
+
+impl Expr {
+    pub fn to_raw(&self) -> String {
+        match self {
+            // Expr::Empty => todo!(),
+            // Expr::Unary(unary, expr) => todo!(),
+            // Expr::Unexpected(_) => todo!(),
+            Expr::Identifier(t) => t.to_string(),
+            // Expr::TemplateLiteral(expr, expr1) => todo!(),
+            // Expr::Literal2(_) => todo!(),
+            // Expr::Literal(_, _) => todo!(),
+            // Expr::Assignment(_, expr) => todo!(),
+            // Expr::Call(expr, vec) => todo!(),
+            // Expr::Member(expr, expr1) => todo!(),
+            // Expr::Sequence(vec) => todo!(),
+            // Expr::Infix(expr, operator, expr1) => todo!(),
+            // Expr::Update(expr, _, _) => todo!(),
+            // Expr::Variable(variable, _, expr) => todo!(),
+            // Expr::Variable2(vec) => todo!(),
+            // Expr::Assignment2(vec) => todo!(),
+            // Expr::If(expr, expr1, expr2) => todo!(),
+            // Expr::BlockStatement(vec) => todo!(),
+            // Expr::Expression(expr) => todo!(),
+            // Expr::Return(expr) => todo!(),
+            // Expr::For(expr, expr1, expr2, expr3) => todo!(),
+            // Expr::ForIn(expr, expr1) => todo!(),
+            // Expr::ForOf(expr, expr1) => todo!(),
+            // Expr::Break => todo!(),
+            // Expr::Continue => todo!(),
+            // Expr::Function(expr, vec, expr1) => todo!(),
+            _ => format!(""),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

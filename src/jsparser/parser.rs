@@ -1,3 +1,5 @@
+use std::path::StripPrefixError;
+
 use super::{
     expr::{Expr, Operator, Unary, Variable},
     lexer::ILexer,
@@ -10,9 +12,15 @@ pub struct Parser {
     current_token: Token,
     peek_token: Token,
 
-    paren: usize,
-    cparen: usize,
-    sparen: usize,
+    /// ()
+    paren: i32,
+    /// {}
+    cparen: i32,
+    /// []
+    sparen: i32,
+
+    allow_fn_name_empty: bool,
+    parent_count: Vec<i32>,
 }
 
 impl Parser {
@@ -24,6 +32,8 @@ impl Parser {
             paren: 0,
             cparen: 0,
             sparen: 0,
+            allow_fn_name_empty: false,
+            parent_count: vec![0, 0, 0],
         };
         parser.next_token();
         parser.next_token();
@@ -41,7 +51,7 @@ impl Parser {
                     || self.peek_token.is_ptor(TokenPunctuator::Dot)
                     || self.peek_token.is_ptor(TokenPunctuator::LSParen)
                 {
-                    let expr = self.parse_call_or_member()?;
+                    let expr = self.parse_call_or_member(None)?;
                     // dbg!(&expr);
                     Ok(expr)
                 } else {
@@ -303,7 +313,7 @@ impl Parser {
                 ) {
                     let token = self.next_token();
                     if !self.current_token.is_ident() {
-                        return Err(format!("{}", self.err("Unexpected end of input")));
+                        return Err(self.err("Unexpected end of input"));
                     }
                     let key = if token.raw == "var" {
                         Variable::Var
@@ -330,11 +340,15 @@ impl Parser {
                     skip_semicolon(self);
                     return Ok(Expr::Variable2(v));
                 } else if matches!(t, TokenKeyword::If) {
-                    return self.parse_if_slot();
+                    let expr = self.parse_if_slot();
+                    skip_semicolon(self);
+                    return expr;
                 } else if matches!(t, TokenKeyword::Else) {
                     return Err(self.err("Unexpected token else"));
                 } else if matches!(t, TokenKeyword::For) {
-                    return self.parse_for_slot();
+                    let expr = self.parse_for_slot();
+                    skip_semicolon(self);
+                    return expr;
                 } else if matches!(t, TokenKeyword::Break) {
                     self.next_token();
                     return Ok(Expr::Break);
@@ -342,16 +356,35 @@ impl Parser {
                     self.next_token();
                     return Ok(Expr::Continue);
                 } else if matches!(t, TokenKeyword::Return) {
+                    self.allow_fn_name_empty = true;
                     self.next_token();
                     if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
                         self.next_token();
                         return Ok(Expr::Return(Box::new(Expr::Empty)));
                     } else {
                         let expr = self.parse(is_skip_semicolon)?;
-                        return Ok(Expr::Return(Box::new(expr)));
+                        if matches!(
+                            expr,
+                            Expr::Infix(_, _, _)
+                                | Expr::Call(_, _)
+                                | Expr::Function(_, _, _)
+                                | Expr::Identifier(_)
+                                | Expr::Assignment(_, _)
+                                | Expr::Assignment2(_)
+                                | Expr::Literal(_, _)
+                                | Expr::Literal2(_)
+                        ) {
+                            self.allow_fn_name_empty = false;
+                            skip_semicolon(self);
+                            return Ok(Expr::Return(Box::new(expr)));
+                        }
+                        dbg!(&expr);
+                        return Err(self.err("Unexpected token"));
                     }
                 } else if matches!(t, TokenKeyword::Function) {
-                    return self.parse_function_slot();
+                    let expr = self.parse_function_slot();
+                    skip_semicolon(self);
+                    return expr;
                 }
                 todo!("{:?}", t);
             }
@@ -371,7 +404,7 @@ impl Parser {
             match result {
                 Ok(expr) => match &expr {
                     Expr::Return(_) | Expr::Break | Expr::Continue => {
-                        return Err(format!("{}", self.err("Unexpected token")));
+                        return Err(self.err("Unexpected token"));
                     }
                     _ => {
                         statements.push(expr.clone());
@@ -404,7 +437,7 @@ impl Parser {
             self.current_token.desc(),
             str,
         );
-        panic!("{}",msg);
+        panic!("{}", msg);
         return msg;
     }
 
@@ -420,10 +453,11 @@ impl Parser {
         }
         if self.current_token.is_ptor(TokenPunctuator::LCParen) {
             self.next_token(); // {
+            self.cparen += 1;
 
             let mut v = Vec::new();
             loop {
-                if self.current_token.is_eof(true){
+                if self.current_token.is_eof(true) {
                     break;
                 }
                 if self.current_token.is_ptor(TokenPunctuator::RCParen) {
@@ -441,7 +475,7 @@ impl Parser {
             if !self.current_token.is_ptor(TokenPunctuator::RCParen) {
                 return Err(self.err("Unexpected token"));
             }
-            self.next_token();//}
+            self.next_token(); //}
             return Ok(Expr::BlockStatement(v));
         } else {
             let expr = self.parse(false)?;
@@ -456,14 +490,26 @@ impl Parser {
 
     fn parse_function_slot(&mut self) -> Result<Expr, String> {
         self.next_token(); // function
-        if !self.current_token.is_ident() {
-            return Err(format!("{}", self.err("Unexpected token")));
+
+        let mut ident: Option<Token> = None;
+        if self.allow_fn_name_empty {
+            //return funciton(){} 这种情况下可以没有名称
+            if self.current_token.is_ident() {
+                ident = Some(self.next_token()); //ident
+            }
+        } else {
+            if !self.current_token.is_ident() {
+                return Err(self.err("Unexpected token"));
+            }
+            ident = Some(self.next_token()); //ident
         }
-        let ident = self.next_token(); //ident
+        //
+
         if !self.current_token.is_ptor(TokenPunctuator::LParen) {
-            return Err(format!("{}", self.err("Unexpected token")));
+            return Err(self.err("Unexpected token"));
         }
         self.next_token(); //(
+        self.record_parent_count(true);
         self.paren += 1;
         let mut args = Vec::new();
         loop {
@@ -482,13 +528,19 @@ impl Parser {
             return Err(self.err("Unexpected end of input"));
         }
         self.next_token(); //)
+        self.record_parent_count(false);
+        self.paren -= 1;
         // dbg!(&args);
         let body = self.parse_body(false)?;
-        Ok(Expr::Function(
-            Box::new(Expr::Identifier(ident.raw.clone())),
-            args,
-            Box::new(body),
-        ))
+        if let Some(tk) = ident {
+            Ok(Expr::Function(
+                Box::new(Expr::Identifier(tk.raw.clone())),
+                args,
+                Box::new(body),
+            ))
+        } else {
+            Ok(Expr::Function(Box::new(Expr::Empty), args, Box::new(body)))
+        }
     }
 
     fn parse_for_slot(&mut self) -> Result<Expr, String> {
@@ -544,26 +596,17 @@ impl Parser {
             return Err(self.err("Unexpected token"));
         }
         self.next_token(); //)
-
         let line = self.current_token.line;
         let left_expr = self.parse_body(true)?;
 
+        let mut flag = false;
         if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
             self.next_token();
-        } else if line == self.current_token.line {
-            return Err(self.err("Unexpected token"));
+            flag= true;
         }
-
-        if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
-            // line = 0;
-            self.next_token();
-        } else {
-            // line = self.current_token.line;
-        }
-
         let mut right_expr = Expr::Empty;
         if self.current_token.is_keyword(TokenKeyword::Else) {
-            if line == self.current_token.line {
+            if  self.current_token.line == line && !flag {
                 return Err(self.err("Unexpected token else"));
             }
             self.next_token(); //else
@@ -592,6 +635,29 @@ impl Parser {
         ))
     }
 
+    /// 处理子语句时记录当前([{ 的数量
+    fn record_parent_count(&mut self, is_record: bool) {
+        if is_record {
+            self.parent_count[0] = self.paren;
+            self.parent_count[1] = self.cparen;
+            self.parent_count[2] = self.sparen;
+            self.paren = 0;
+            self.cparen = 0;
+            self.sparen = 0;
+        } else {
+            self.paren = self.parent_count[0];
+            self.cparen = self.parent_count[1];
+            self.sparen = self.parent_count[2];
+        }
+    }
+    /// 检测([{ 的数量是否正常
+    fn paren_is_ok(&mut self) -> bool {
+        let r = self.paren == 0 && self.cparen == 0 && self.sparen == 0;
+        // if !r {
+        //     panic!()
+        // }
+        r
+    }
     fn parse_call_slot(&mut self, callee: &mut Expr) -> Result<Expr, String> {
         self.next_token(); //(
         self.paren += 1;
@@ -613,6 +679,7 @@ impl Parser {
             return Err(self.err("Unexpected end of input"));
         }
         self.next_token(); //)
+        self.paren -= 1;
         return Ok(Expr::Call(Box::new(callee.clone()), v));
     }
     fn parse_member_slot(&mut self, mem: &mut Expr) -> Result<(), String> {
@@ -639,55 +706,79 @@ impl Parser {
                 if let Expr::Member(_, property) = mem {
                     *property = Box::new(v.get(0).unwrap().clone());
                 } else {
-                    return Err(format!("{}", self.err("未解析或异常")));
+                    return Err(self.err("未解析或异常"));
                 }
             } else {
                 if let Expr::Member(_, property) = mem {
                     *property = Box::new(Expr::Sequence(v));
                 } else {
-                    return Err(format!("{}", self.err("未解析或异常")));
+                    return Err(self.err("未解析或异常"));
                 }
             }
             if !self.current_token.is_ptor(TokenPunctuator::RSParen) {
-                return Err(format!("{}", self.err("Unexpected end of input")));
+                return Err(self.err("Unexpected end of input"));
             }
             self.next_token(); //]
         }
         Ok(())
     }
     /// 这里还要处理多级 如: a()[1]  a[1]()    a[1]()[1]()...
-    fn parse_call_or_member(&mut self) -> Result<Expr, String> {
-        let token = self.next_token(); //ident
+    fn parse_call_or_member(&mut self, prefix: Option<Expr>) -> Result<Expr, String> {
+        let mut id = Expr::Empty;
+        if prefix == None {
+            let token = self.next_token();
+            id = Expr::Identifier(token.raw.clone())
+        } else {
+            id = prefix.unwrap();
+        }
         let mut expr = Expr::Empty;
         loop {
             if self.current_token.is_eof(true) {
                 break;
             }
+            if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                self.cparen -= 1;
+                self.paren_is_ok();
+                break;
+            } else if self.current_token.is_ptor(TokenPunctuator::RParen) {
+                self.paren -= 1;
+                self.paren_is_ok();
+                break;
+            }
             if self.current_token.is_ptor(TokenPunctuator::LParen) {
                 //(
                 if Expr::Empty == expr {
-                    expr = Expr::Identifier(token.raw.clone());
+                    expr = id.clone();
                 } else {
+                    self.record_parent_count(true);
+                    // let line = self.current_token.line;
                     expr = self.parse_call_slot(&mut expr)?;
+                    self.record_parent_count(false);
+                    // if self.current_token.line == line {
+                    //     if self.current_token.checked_keyword(){
+                    //         break;
+                    //     }
+                    //    //println!("{:?}",self.current_token);
+                    // }
                     if self.paren == 0 {
                         //(的值为0时表示方法截取完闭，如果后面还有()或[]则还要继续在循环中执行
                         continue;
                     }
-                    break;
+                    // break;
                 }
             } else if self.current_token.is_ptor(TokenPunctuator::LSParen)
                 || self.current_token.is_ptor(TokenPunctuator::Dot)
             {
                 //[
                 if Expr::Empty == expr {
-                    expr = Expr::Member(
-                        Box::new(Expr::Identifier(token.raw.clone())),
-                        Box::new(Expr::Empty),
-                    );
+                    expr = Expr::Member(Box::new(id.clone()), Box::new(Expr::Empty));
                 } else {
                     expr = Expr::Member(Box::new(expr), Box::new(Expr::Empty));
                 }
                 let _ = self.parse_member_slot(&mut expr);
+            }
+            else{
+                break;
             }
         }
         Ok(expr)
