@@ -479,7 +479,7 @@ impl Parser {
             return Ok(Expr::BlockStatement(v));
         } else {
             let expr = self.parse(false)?;
-            if matches!(expr, Expr::Assignment2(_) | Expr::Call(_, _)) {
+            if matches!(expr, Expr::Assignment2(_) | Expr::Call(_, _)|Expr::Return(_)){
                 return Ok(expr);
             } else {
                 dbg!(&expr);

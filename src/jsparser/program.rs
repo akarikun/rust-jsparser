@@ -81,7 +81,6 @@ impl Program {
     }
 
     fn bind_local_args(&mut self, index: usize, typ: Variable, args: &Vec<Expr>) {
-        // dbg!(&self.call_value);
         let arr = self.call_value.pop().unwrap();
         let mut map = HashMap::new();
         for (i, e) in args.iter().enumerate() {
@@ -131,6 +130,10 @@ impl Program {
             *index -= 1;
         }
     }
+    pub fn log_value_print(&mut self){
+        dbg!(&self.local_value);
+        dbg!(&self.call_value);
+    }
 
     fn err(&self, str: &str) -> String {
         let msg = format!(
@@ -144,14 +147,13 @@ impl Program {
     }
     fn parse_call(
         &mut self,
-        index: usize,
+        mut index: usize,
         ee: &Box<Expr>,
         expr: &Vec<Expr>,
     ) -> Result<JSType, String> {
         let args_action = |p: &mut Self, expr: &Vec<Expr>| -> Result<Vec<JSType>, String> {
             let mut args: Vec<JSType> = Vec::new();
             for (i, expr2) in expr.clone().iter().enumerate() {
-                // dbg!(&expr2);
                 if matches!(
                     expr2,
                     Expr::Identifier(_) | Expr::Literal(_, _) | Expr::Call(_, _)
@@ -169,19 +171,13 @@ impl Program {
             Ok(args)
         };
         if let Expr::Call(_call, _args) = ee.as_ref() {
-            dbg!(&ee);
             let result = self.parse(index, ee)?;
             match result {
-                JSType::Function(a, b, c) => {
+                JSType::Function(a, b, c,d) => {
                     //最外层的args
                     let arguments = args_action(self, &expr)?;
                     self.call_value.push(arguments);
-                    // dbg!(&_args);
-                    // // dbg!(&ee);
-                    // // dbg!(&self.call_value);
-                    // dbg!(&expr);
-                    // dbg!(&self.call_value);
-                    // dbg!(&self.local_value);
+                    self.update_index(&mut index, true);
                     return self.parse(index, &Expr::Function(Box::new(a), b, Box::new(c)));
                 }
                 _ => return Ok(result),
@@ -192,10 +188,7 @@ impl Program {
             self.call_value.push(args.clone());
             if let Some(e) = self.fn_map.get(&ident) {
                 let result = self.parse(index, &e.clone())?;
-                if matches!(result, JSType::Function(_, _, _)) {
-                    // dbg!(&result);
-                    // dbg!(&self.call_value);
-                    // dbg!(&self.local_value);
+                if matches!(result, JSType::Function(_, _, _,_)) {
                     return Ok(result);
                 } else {
                     if self.local_value.len() > 0 {
@@ -252,8 +245,8 @@ impl Program {
                 return Ok(JSType::String(val.clone()));
             }
             Expr::Identifier(t) => {
-                let last_index = index;
-                let mut index = index as i32;
+                let last_index = index.clone();
+                let mut index = index.clone() as i32;
                 loop {
                     if let Some(val) = self.local_value.get(&(index as usize)) {
                         if let Some(v) = val.get(t) {
@@ -261,35 +254,28 @@ impl Program {
                         }
                     }
                     index -= 1;
-                    if index <= 0 {
+                    if index <= -1 {
                         break;
                     }
                 }
                 if let Some(val) = self.global_value_map.get(t) {
                     return Ok(val.clone());
                 }
-                // dbg!(&last_index);
-                // dbg!(&index);
-                // dbg!(&self.local_value);
                 return Err(self.err(&format!("Uncaught ReferenceError: {} is not defined", t)));
             }
             Expr::Call(ee, expr) => {
-                // self.update_index(&mut index, true);
+                //self.update_index(&mut index, true);
                 let result = self.parse_call(index, ee, expr)?;
-                // self.update_index(&mut index, false); //释放当前及以后层
+                // dbg!(&result);
+                // if !matches!(result,JSType::Function(_, _, _)){
+                //     self.update_index(&mut index, false); //释放当前及以后层
+                // }
                 return Ok(result);
             }
             Expr::Function(ident, args, body) => {
+                self.update_index(&mut index, true);
                 //处理函数调用后的实现功能
-                // dbg!(&index);
-                // dbg!(&self.local_value);
-                // dbg!(&self.call_value);
-                // dbg!(&ident);
-                // dbg!(&args);
-                // dbg!(&body);
                 self.bind_local_args(index, Variable::Var, args);
-                // dbg!(&ident);
-                // dbg!(&self.local_value);
                 if let Expr::Identifier(id) = ident.as_ref() {
                     // let result = self.parse(index, body.as_ref())?;
                     match body.as_ref().clone() {
@@ -299,12 +285,11 @@ impl Program {
                                 match i {
                                     Expr::Return(expr) => {
                                         if let Expr::Function(a, b, c) = expr.as_ref() {
-                                            // println!("{}_{:?}", id, a.as_ref());
-                                            // dbg!(b);
                                             return Ok(JSType::Function(
                                                 a.as_ref().clone(),
                                                 b.clone(),
                                                 c.as_ref().clone(),
+                                                HashMap::new(),
                                             ));
                                         } else if matches!(expr.as_ref(), Expr::Empty) {
                                             return Ok(JSType::Void);
@@ -323,14 +308,13 @@ impl Program {
                                     }
                                     _ => {
                                         let _expr = self.parse(index, &i);
-                                        return _expr;
+                                        // return _expr;
                                     }
                                 }
                             }
                         }
                         _ => panic!("{:?}", body),
                     }
-                    // return Ok(result);
                 } else if let Expr::Empty = ident.as_ref() {
                     return Ok(JSType::Void);
                 } else {
@@ -419,6 +403,10 @@ impl Program {
                     _ = self.parse(index, i);
                 }
             }
+            // Expr::Return(t)=>{
+            //     matches!()
+            //     return Ok(JSType::Void)
+            // }
             _ => {
                 dbg!(&e);
                 return Err(self.err(&format!("功能暂未完成,{:?}", e)));
@@ -436,7 +424,12 @@ pub enum JSType {
     Float(f64),
     String(String),
     Bool(bool),
-    Function(Expr, Vec<Expr>, Expr),
+    Function(
+        Expr,
+        Vec<Expr>,
+        Expr,
+        HashMap<usize, HashMap<String, (Variable, JSType)>>,//这个参数不确定需不需要，如果function返回一个function需要存储一些参数信息，但是最终可能不用这种方式处理
+    ),
 }
 
 impl JSType {
@@ -448,7 +441,7 @@ impl JSType {
             JSType::String(t) => Ok(t.to_string()),
             JSType::Bool(t) => Ok(t.to_string()),
             JSType::Void => Ok("".to_string()),
-            JSType::Function(t, _, _) => Ok(format!("function:{}", t.to_raw())),
+            JSType::Function(t, _, _, _) => Ok(format!("function:{}", t.to_raw())),
         }
     }
     pub fn add(&self, other: &JSType) -> Result<JSType, String> {
