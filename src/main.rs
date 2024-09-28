@@ -4,7 +4,7 @@ use std::time::Instant;
 fn main() -> Result<(), String> {
     let input = r#"
     log(add(add(1,2,3),add(4,5)));
-    log(test(11));
+    log(test(11)(22));
     function test(val){
         for(let i = 0;i<10;i++){
             if (i%2==0)
@@ -12,14 +12,13 @@ fn main() -> Result<(), String> {
             else
                 log("test:"+i+" "+(i-val-a));
         }
-        return val+1;
-        return function (abc){
-            return val+abc;
+        return function(abc){
+            return val+abc+a;
         }
     }
-    // log("------");
-    // log(val);//val is not defined 执行到这里报错后不执行后面的语句
-    // test(22);
+    log("------");
+    log(val);//val is not defined 
+    test(22);
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
