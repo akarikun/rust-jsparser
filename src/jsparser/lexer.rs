@@ -398,6 +398,13 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
+                    "while"=>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::While),
+                            line,
+                            self.column,
+                        )
+                    }
                     _ => {
                         return Token::new(TokenType::Ident(ident), line, self.column);
                     }

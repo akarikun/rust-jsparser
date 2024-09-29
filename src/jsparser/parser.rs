@@ -11,16 +11,10 @@ pub struct Parser {
     lexer: Box<dyn ILexer>,
     current_token: Token,
     peek_token: Token,
-
-    /// ()
-    paren: i32,
-    /// {}
-    cparen: i32,
-    /// []
-    sparen: i32,
-
-    allow_fn_name_empty: bool,
-    parent_count: Vec<i32>,
+    allow_fn_name_empty: bool, //是否允许方法名为空
+    allow_return: bool,        //是否允许返回return
+    allow_break: bool,         //是否允许break
+    allow_continue: bool,      //是否允许continue
 }
 
 impl Parser {
@@ -29,11 +23,10 @@ impl Parser {
             lexer,
             current_token: Token::new(TokenType::EOF, 0, 0),
             peek_token: Token::new(TokenType::EOF, 0, 0),
-            paren: 0,
-            cparen: 0,
-            sparen: 0,
             allow_fn_name_empty: false,
-            parent_count: vec![0, 0, 0],
+            allow_return: false,
+            allow_break: false,
+            allow_continue: false,
         };
         parser.next_token();
         parser.next_token();
@@ -73,21 +66,18 @@ impl Parser {
                 }
                 if matches!(t, TokenPunctuator::LParen) {
                     self.next_token(); //(
-                    self.paren += 1;
                     let expr = self.parse(true)?;
                     self.next_token(); //)
                     return Ok(expr);
                 }
                 if matches!(t, TokenPunctuator::LSParen) {
                     self.next_token(); //[
-                    self.sparen += 1;
                     let expr = self.parse(true)?;
                     self.next_token(); //]
                     return Ok(expr);
                 }
                 if matches!(t, TokenPunctuator::Dot) {
                     // self.next_token(); //[
-                    // self.sparen += 1;
                     // let expr = self.parse(true)?;
                     // self.next_token(); //]
                     // return Ok(expr);
@@ -133,25 +123,12 @@ impl Parser {
         match typ {
             TokenType::Punctuator(ptor) => {
                 if matches!(ptor, TokenPunctuator::RParen) {
-                    self.paren -= 1;
-                    if self.paren < 0 {
-                        return Err(self.err("Unexpected token"));
-                    }
                     self.next_token();
                     return Ok(true);
                 } else if matches!(ptor, TokenPunctuator::RCParen) {
-                    self.cparen -= 1;
-                    if self.cparen < 0 {
-                        return Err(self.err("Unexpected token"));
-                    }
                     self.next_token();
                     return Ok(true);
                 } else if matches!(ptor, TokenPunctuator::RSParen) {
-                    dbg!(&self.sparen);
-                    self.sparen -= 1;
-                    if self.sparen < 0 {
-                        return Err(self.err("Unexpected token"));
-                    }
                     self.next_token();
                     return Ok(true);
                 }
@@ -258,11 +235,13 @@ impl Parser {
                     //a++
                     self.next_token();
                     self.next_token();
-                    return Ok(Expr::Update(
+                    let expr = Expr::Update(
                         Box::new(Expr::Identifier(ident.clone())),
                         format!("++"),
                         false,
-                    ));
+                    );
+                    skip_semicolon(self);
+                    return Ok(expr);
                 } else if self.peek_token.is_ptor(TokenPunctuator::DEC) {
                     //a--
                     self.next_token();
@@ -273,7 +252,6 @@ impl Parser {
                         false,
                     ));
                 }
-
                 let cur = self.current_token.clone();
                 let chk = self.checked_paren(&self.peek_token.typ.clone())?;
                 if chk {
@@ -350,16 +328,28 @@ impl Parser {
                     skip_semicolon(self);
                     return expr;
                 } else if matches!(t, TokenKeyword::Break) {
+                    if !self.allow_break {
+                        return Err(self.err("Illegal break statement"));
+                    }
                     self.next_token();
+                    skip_semicolon(self);
                     return Ok(Expr::Break);
                 } else if matches!(t, TokenKeyword::Continue) {
+                    if !self.allow_continue {
+                        return Err(self.err("Illegal continue statement"));
+                    }
                     self.next_token();
+                    skip_semicolon(self);
                     return Ok(Expr::Continue);
                 } else if matches!(t, TokenKeyword::Return) {
+                    if !self.allow_return {
+                        return Err(self.err("Illegal return statement"));
+                    }
                     self.allow_fn_name_empty = true;
                     self.next_token();
                     if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
                         self.next_token();
+                        skip_semicolon(self);
                         return Ok(Expr::Return(Box::new(Expr::Empty)));
                     } else {
                         let expr = self.parse(is_skip_semicolon)?;
@@ -376,6 +366,7 @@ impl Parser {
                         ) {
                             self.allow_fn_name_empty = false;
                             skip_semicolon(self);
+                            skip_semicolon(self);
                             return Ok(Expr::Return(Box::new(expr)));
                         }
                         dbg!(&expr);
@@ -385,6 +376,10 @@ impl Parser {
                     let expr = self.parse_function_slot();
                     skip_semicolon(self);
                     return expr;
+                } else if matches!(t, TokenKeyword::While) {
+                    let expr = self.parse_while_slot();
+                    skip_semicolon(self);
+                    return expr;
                 }
                 todo!("{:?}", t);
             }
@@ -392,7 +387,6 @@ impl Parser {
         Err(self.err("未知解析"))
     }
 
-    //这里还要过滤一次
     fn filter_statement(
         &mut self,
         count: usize,
@@ -403,9 +397,9 @@ impl Parser {
             let result = self.parse(true);
             match result {
                 Ok(expr) => match &expr {
-                    Expr::Return(_) | Expr::Break | Expr::Continue => {
-                        return Err(self.err("Unexpected token"));
-                    }
+                    // Expr::Return(_) | Expr::Break | Expr::Continue => {
+                    //     return Err(self.err("Unexpected token"));
+                    // }
                     _ => {
                         statements.push(expr.clone());
                     }
@@ -433,7 +427,7 @@ impl Parser {
     fn err(&self, str: &str) -> String {
         let msg = format!(
             //"\x1b[31m{}\x1b[39m,token:<\x1b[32m{}\x1b[39m>",
-            "({}){}",
+            "\x1b[31m({}) {} \x1b[39m",
             self.current_token.desc(),
             str,
         );
@@ -447,14 +441,12 @@ impl Parser {
         token
     }
 
-    fn parse_body(&mut self, allow_abbr: bool) -> Result<Expr, String> {
-        if !allow_abbr && !self.current_token.is_ptor(TokenPunctuator::LCParen) {
+    fn parse_body(&mut self, allow_single: bool) -> Result<Expr, String> {
+        if !allow_single && !self.current_token.is_ptor(TokenPunctuator::LCParen) {
             return Err(self.err("Unexpected token"));
         }
         if self.current_token.is_ptor(TokenPunctuator::LCParen) {
             self.next_token(); // {
-            self.cparen += 1;
-
             let mut v = Vec::new();
             loop {
                 if self.current_token.is_eof(true) {
@@ -479,7 +471,10 @@ impl Parser {
             return Ok(Expr::BlockStatement(v));
         } else {
             let expr = self.parse(false)?;
-            if matches!(expr, Expr::Assignment2(_) | Expr::Call(_, _)|Expr::Return(_)){
+            if matches!(
+                expr,
+                Expr::Assignment2(_) | Expr::Call(_, _) | Expr::Return(_)
+            ) {
                 return Ok(expr);
             } else {
                 dbg!(&expr);
@@ -488,6 +483,48 @@ impl Parser {
         }
     }
 
+    fn is_valid(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Unary(_, _)
+            | Expr::Identifier(_)
+            | Expr::TemplateLiteral(_, _)
+            | Expr::Literal(_, _)
+            | Expr::Literal2(_)
+            | Expr::Call(_, _)
+            | Expr::Member(_, _)
+            | Expr::Sequence(_)
+            | Expr::Infix(_, _, _)
+            | Expr::Update(_, _, _)
+            | Expr::Assignment(_, _)
+            | Expr::Assignment2(_)
+            | Expr::Variable2(_)
+            | Expr::Variable(_, _, _) => true,
+            _ => false,
+        }
+    }
+    fn parse_while_slot(&mut self) -> Result<Expr, String> {
+        self.next_token(); // while
+        if !self.current_token.is_ptor(TokenPunctuator::LParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token();
+        let test = self.parse(false)?;
+        if !self.is_valid(&test){
+            return Err(self.err("Unexpected token"));
+        }
+        if !self.current_token.is_ptor(TokenPunctuator::RParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token();
+        self.allow_break = true;
+        self.allow_continue = true;
+        let body = self.parse_body(true)?;
+        self.allow_break = false;
+        self.allow_continue = false;
+        dbg!(&test);
+        dbg!(&body);
+        Ok(Expr::While(Box::new(test), Box::new(body)))
+    }
     fn parse_function_slot(&mut self) -> Result<Expr, String> {
         self.next_token(); // function
 
@@ -509,8 +546,6 @@ impl Parser {
             return Err(self.err("Unexpected token"));
         }
         self.next_token(); //(
-        self.record_parent_count(true);
-        self.paren += 1;
         let mut args = Vec::new();
         loop {
             if self.current_token.is_ptor(TokenPunctuator::RParen) {
@@ -528,10 +563,9 @@ impl Parser {
             return Err(self.err("Unexpected end of input"));
         }
         self.next_token(); //)
-        self.record_parent_count(false);
-        self.paren -= 1;
-        // dbg!(&args);
+        self.allow_return = true;
         let body = self.parse_body(false)?;
+        self.allow_return = false;
         if let Some(tk) = ident {
             Ok(Expr::Function(
                 Box::new(Expr::Identifier(tk.raw.clone())),
@@ -559,6 +593,9 @@ impl Parser {
                 break;
             }
             let binary = self.parse(false)?;
+            if !self.is_valid(&binary){
+                return Err(self.err("Unexpected token"));
+            }
             if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
                 self.next_token();
             }
@@ -570,7 +607,11 @@ impl Parser {
         self.next_token(); //)
 
         let line = self.current_token.line;
+        self.allow_break = true;
+        self.allow_continue = true;
         let body = self.parse_body(true)?;
+        self.allow_break = false;
+        self.allow_continue = false;
 
         if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
             self.next_token();
@@ -591,7 +632,9 @@ impl Parser {
         }
         self.next_token(); //(
         let binary = self.parse(false)?;
-
+        if !self.is_valid(&binary){
+            return Err(self.err("Unexpected token"));
+        }
         if !self.current_token.is_ptor(TokenPunctuator::RParen) {
             return Err(self.err("Unexpected token"));
         }
@@ -602,11 +645,11 @@ impl Parser {
         let mut flag = false;
         if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
             self.next_token();
-            flag= true;
+            flag = true;
         }
         let mut right_expr = Expr::Empty;
         if self.current_token.is_keyword(TokenKeyword::Else) {
-            if  self.current_token.line == line && !flag {
+            if self.current_token.line == line && !flag {
                 return Err(self.err("Unexpected token else"));
             }
             self.next_token(); //else
@@ -635,35 +678,10 @@ impl Parser {
         ))
     }
 
-    /// 处理子语句时记录当前([{ 的数量
-    fn record_parent_count(&mut self, is_record: bool) {
-        if is_record {
-            self.parent_count[0] = self.paren;
-            self.parent_count[1] = self.cparen;
-            self.parent_count[2] = self.sparen;
-            self.paren = 0;
-            self.cparen = 0;
-            self.sparen = 0;
-        } else {
-            self.paren = self.parent_count[0];
-            self.cparen = self.parent_count[1];
-            self.sparen = self.parent_count[2];
-        }
-    }
-    /// 检测([{ 的数量是否正常
-    fn paren_is_ok(&mut self) -> bool {
-        let r = self.paren == 0 && self.cparen == 0 && self.sparen == 0;
-        // if !r {
-        //     panic!()
-        // }
-        r
-    }
     fn parse_call_slot(&mut self, callee: &mut Expr) -> Result<Expr, String> {
         self.next_token(); //(
-        self.paren += 1;
         if self.current_token.is_ptor(TokenPunctuator::RParen) {
             self.next_token(); //)
-            self.paren -= 1;
             return Ok(Expr::Call(Box::new(callee.clone()), Vec::new()));
         }
 
@@ -673,13 +691,15 @@ impl Parser {
         while self.current_token.is_ptor(TokenPunctuator::Comma) {
             self.next_token();
             let expr = self.parse(true)?;
+            if !self.is_valid(&expr){
+                return Err(self.err("Unexpected token"));
+            }
             v.push(expr);
         }
         if !self.current_token.is_ptor(TokenPunctuator::RParen) {
             return Err(self.err("Unexpected end of input"));
         }
         self.next_token(); //)
-        self.paren -= 1;
         return Ok(Expr::Call(Box::new(callee.clone()), v));
     }
     fn parse_member_slot(&mut self, mem: &mut Expr) -> Result<(), String> {
@@ -693,13 +713,18 @@ impl Parser {
                 }
             }
         } else if t.is_ptor(TokenPunctuator::LSParen) {
-            self.sparen += 1;
             let expr = self.parse(true)?;
+            if !self.is_valid(&expr){
+                return Err(self.err("Unexpected token"));
+            }
             let mut v = Vec::new();
             v.push(expr);
             while self.current_token.is_ptor(TokenPunctuator::Comma) {
                 self.next_token();
                 let e = self.parse(true)?;
+                if !self.is_valid(&e){
+                    return Err(self.err("Unexpected token"));
+                }
                 v.push(e);
             }
             if v.len() == 1 {
@@ -737,12 +762,8 @@ impl Parser {
                 break;
             }
             if self.current_token.is_ptor(TokenPunctuator::RCParen) {
-                self.cparen -= 1;
-                self.paren_is_ok();
                 break;
             } else if self.current_token.is_ptor(TokenPunctuator::RParen) {
-                self.paren -= 1;
-                self.paren_is_ok();
                 break;
             }
             if self.current_token.is_ptor(TokenPunctuator::LParen) {
@@ -750,20 +771,15 @@ impl Parser {
                 if Expr::Empty == expr {
                     expr = id.clone();
                 } else {
-                    self.record_parent_count(true);
                     // let line = self.current_token.line;
                     expr = self.parse_call_slot(&mut expr)?;
-                    self.record_parent_count(false);
+
                     // if self.current_token.line == line {
                     //     if self.current_token.checked_keyword(){
                     //         break;
                     //     }
                     //    //println!("{:?}",self.current_token);
                     // }
-                    if self.paren == 0 {
-                        //(的值为0时表示方法截取完闭，如果后面还有()或[]则还要继续在循环中执行
-                        continue;
-                    }
                     // break;
                 }
             } else if self.current_token.is_ptor(TokenPunctuator::LSParen)
@@ -776,8 +792,7 @@ impl Parser {
                     expr = Expr::Member(Box::new(expr), Box::new(Expr::Empty));
                 }
                 let _ = self.parse_member_slot(&mut expr);
-            }
-            else{
+            } else {
                 break;
             }
         }

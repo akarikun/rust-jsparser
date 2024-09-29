@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Empty};
 
 use super::expr::{Expr, Operator, Variable};
 
@@ -166,6 +166,46 @@ impl Program {
         }
     }
 
+    fn parse_body_slot(&mut self, vec: &Vec<Expr>, mut index: usize) -> Result<JSType, String> {
+        for i in vec {
+            match i {
+                Expr::Break=>{
+                    // return Ok(JSType::Void);
+                },
+                Expr::Continue=>{
+                    // return Ok(JSType::Void);
+                },
+                Expr::Return(expr) => {
+                    if let Expr::Function(a, b, c) = expr.as_ref() {
+                        return Ok(JSType::Function(
+                            a.as_ref().clone(),
+                            b.clone(),
+                            c.as_ref().clone(),
+                        ));
+                    } else if matches!(expr.as_ref(), Expr::Empty) {
+                        return Ok(JSType::Void);
+                    } else if matches!(
+                        expr.as_ref(),
+                        Expr::Identifier(_)
+                            | Expr::Call(_, _)
+                            | Expr::Literal(_, _)
+                            | Expr::Infix(_, _, _)
+                    ) {
+                        let result = self.parse(index, &expr)?;
+                        return Ok(result);
+                    } else {
+                        dbg!(&expr);
+                        panic!("{:?}", expr);
+                    }
+                }
+                _ => {
+                    let _expr = self.parse(index, &i);
+                    // return _expr;
+                }
+            }
+        }
+        Ok(JSType::Void)
+    }
     fn parse_call_function(
         &mut self,
         mut index: usize,
@@ -179,37 +219,7 @@ impl Program {
             // if let Expr::Identifier(id) = ident.as_ref() {
             match body.as_ref().clone() {
                 Expr::BlockStatement(vec) => {
-                    for i in vec {
-                        match i {
-                            Expr::Return(expr) => {
-                                if let Expr::Function(a, b, c) = expr.as_ref() {
-                                    return Ok(JSType::Function(
-                                        a.as_ref().clone(),
-                                        b.clone(),
-                                        c.as_ref().clone(),
-                                    ));
-                                } else if matches!(expr.as_ref(), Expr::Empty) {
-                                    return Ok(JSType::Void);
-                                } else if matches!(
-                                    expr.as_ref(),
-                                    Expr::Identifier(_)
-                                        | Expr::Call(_, _)
-                                        | Expr::Literal(_, _)
-                                        | Expr::Infix(_, _, _)
-                                ) {
-                                    let result = self.parse(index, &expr)?;
-                                    return Ok(result);
-                                } else {
-                                    dbg!(&expr);
-                                    panic!("{:?}", expr);
-                                }
-                            }
-                            _ => {
-                                let _expr = self.parse(index, &i);
-                                // return _expr;
-                            }
-                        }
-                    }
+                    return self.parse_body_slot(&vec, index);
                 }
                 _ => panic!("{:?}", body),
             }
@@ -218,6 +228,37 @@ impl Program {
         Ok(JSType::Void)
     }
 
+    fn parse_while_and_for(
+        &mut self,
+        mut index: usize,
+        init: Option<&Box<Expr>>,
+        test: &Box<Expr>,
+        update: Option<&Box<Expr>>,
+        body: &Box<Expr>,
+    ) -> Result<JSType, String> {
+        self.update_index(&mut index, true);
+        if let Some(init) = init {
+            _ = self.parse(index, init.as_ref())?;
+        }
+        loop {
+            let test = self.parse(index, test.as_ref())?;
+            if let JSType::Bool(flag) = test {
+                if flag {
+                    self.parse(index, body)?;
+                    if let Some(update) = update {
+                        self.parse(index, update)?;
+                    }
+                } else {
+                    break;
+                }
+            } else {
+                dbg!(&test);
+                return Err(self.err(&format!("表达式异常")));
+            }
+        }
+        self.update_index(&mut index, false);
+        Ok(JSType::Void)
+    }
     ///语法解析及执行，使用递归处理所有语句
     fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
         match e {
@@ -325,24 +366,7 @@ impl Program {
                 self.bind_local_arg(index, Some(variable.clone()), ident.clone(), result);
             }
             Expr::For(init, test, update, body) => {
-                // println!("{:?}", e);
-                self.update_index(&mut index, true);
-                let init = self.parse(index, init.as_ref())?;
-                loop {
-                    let test = self.parse(index, test.as_ref())?;
-                    if let JSType::Bool(flag) = test {
-                        if flag {
-                            self.parse(index, body)?;
-                            self.parse(index, update)?;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        dbg!(&test);
-                        return Err(self.err(&format!("表达式异常")));
-                    }
-                }
-                self.update_index(&mut index, false);
+                _ = self.parse_while_and_for(index, Some(init), test, Some(update), body);
             }
             Expr::ForIn(_, _) => {}
             Expr::ForOf(_, _) => {}
@@ -362,7 +386,8 @@ impl Program {
                 let result = self.parse(index, e)?;
                 if let JSType::Bool(r) = result {
                     if r {
-                        self.parse(index, left.as_ref())?;
+                        let left = left.as_ref();
+                        self.parse(index, left)?;
                     } else {
                         self.parse(index, right.as_ref())?;
                     }
@@ -374,14 +399,13 @@ impl Program {
                 return self.parse(index, expr);
             }
             Expr::BlockStatement(t) => {
-                for i in t {
-                    _ = self.parse(index, i);
-                }
+                let result = self.parse_body_slot(t, index);
+                return result;
             }
-            // Expr::Return(t)=>{
-            //     matches!()
-            //     return Ok(JSType::Void)
-            // }
+            Expr::While(test, body) => {
+                _ = self.parse_while_and_for(index, None, test, None, body);
+            }
+            Expr::Empty => {}
             _ => {
                 dbg!(&e);
                 return Err(self.err(&format!("功能暂未完成,{:?}", e)));

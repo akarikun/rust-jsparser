@@ -3,22 +3,36 @@ use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 use std::time::Instant;
 fn main() -> Result<(), String> {
     let input = r#"
-    log(add(add(1,2,3),add(4,5)));
-    log(test(11)(22));
-    function test(val){
-        for(let i = 0;i<10;i++){
-            if (i%2==0)
-                log("test:"+i+" "+(i+val+a)) 
-            else
-                log("test:"+i+" "+(i-val-a));
-        }
-        return function(abc){
-            return val+abc+a;
-        }
+    // log(add(add(1,2,3),add(4,5)));
+    // log(test(11)(22));
+    // function test(val){
+    //     for(let i = 0;i<10;i++){
+    //         if (i%2==0)
+    //             log("test:"+i+" "+(i+val+a)) 
+    //         else
+    //             log("test:"+i+" "+(i-val-a));
+    //     }
+    //     return function(abc){
+    //         return val+abc+a;
+    //     }
+    // }
+    // log("------");
+    // log(val);//val is not defined 
+    // test(22);
+    let abc = 0;
+    while(abc<10){
+        abc++;
+        // if(abc==5){ //暂未实现
+        //     break;
+        // }
+        log(abc);
     }
-    log("------");
-    log(val);//val is not defined 
-    test(22);
+    // for(let i = 0;i<10;i++){
+    //     if (i%2==0)
+    //         log(i) 
+    //     else
+    //         log(i);
+    // }
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
