@@ -30,7 +30,8 @@ pub enum Expr {
     Break,
     Continue,
     Function(Box<Expr>, Vec<Expr>, Box<Expr>), //function
-    While(Box<Expr>, Box<Expr>)
+    While(Box<Expr>, Box<Expr>),
+    DoWhile(Box<Expr>, Box<Expr>),
 }
 
 impl Expr {

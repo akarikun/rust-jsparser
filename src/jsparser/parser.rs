@@ -380,6 +380,10 @@ impl Parser {
                     let expr = self.parse_while_slot();
                     skip_semicolon(self);
                     return expr;
+                } else if matches!(t,TokenKeyword::Do){
+                    let expr = self.parse_do_while_slot();
+                    skip_semicolon(self);
+                    return expr;
                 }
                 todo!("{:?}", t);
             }
@@ -502,6 +506,45 @@ impl Parser {
             _ => false,
         }
     }
+    fn parse_do_while_slot(&mut self)->Result<Expr, String> {
+        self.next_token();//do
+
+        let line = self.current_token.line;
+        self.allow_break = true;
+        self.allow_continue = true;
+        let body = self.parse_body(true)?;
+        self.allow_break = false;
+        self.allow_continue = false;
+
+        if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+            self.next_token();
+        } else if line == self.current_token.line {
+            return Err(self.err("Unexpected token"));
+        }
+
+        if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+            self.next_token();
+        } else if line == self.current_token.line {
+            return Err(self.err("Unexpected token"));
+        }
+        if !self.current_token.is_keyword(TokenKeyword::While){
+            return Err(self.err("Unexpected end of input"));
+        }
+        self.next_token(); // while
+        if !self.current_token.is_ptor(TokenPunctuator::LParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token();
+        let test = self.parse(false)?;
+        if !self.is_valid(&test){
+            return Err(self.err("Unexpected token"));
+        }
+        if !self.current_token.is_ptor(TokenPunctuator::RParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token();
+        Ok(Expr::DoWhile(Box::new(test), Box::new(body)))
+    }
     fn parse_while_slot(&mut self) -> Result<Expr, String> {
         self.next_token(); // while
         if !self.current_token.is_ptor(TokenPunctuator::LParen) {
@@ -516,11 +559,19 @@ impl Parser {
             return Err(self.err("Unexpected token"));
         }
         self.next_token();
+
+        let line = self.current_token.line;
         self.allow_break = true;
         self.allow_continue = true;
         let body = self.parse_body(true)?;
         self.allow_break = false;
         self.allow_continue = false;
+        
+        if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+            self.next_token();
+        } else if line == self.current_token.line {
+            return Err(self.err("Unexpected token"));
+        }
         Ok(Expr::While(Box::new(test), Box::new(body)))
     }
     fn parse_function_slot(&mut self) -> Result<Expr, String> {

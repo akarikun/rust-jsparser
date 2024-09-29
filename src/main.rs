@@ -20,17 +20,21 @@ fn main() -> Result<(), String> {
     // log(val);//val is not defined 
     // test(22);
     let abc = 0;
-    while(abc<10){
+    do {
         abc++;
-        log("first...");
-        if(abc==5){
-            continue;
-        }
-        if(abc==8){
-            break;
-        }
         log("abc:"+abc);
-    }
+    } while(abc>10)
+    // while(abc<10){
+    //     abc++;
+    //     log("first...");
+    //     if(abc==5){
+    //         continue;
+    //     }
+    //     if(abc==8){
+    //         break;
+    //     }
+    //     log("abc:"+abc);
+    // }
     // for(let i = 0;i<10;i++){
     //     if (i%2==0)
     //         log(i) 

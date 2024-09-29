@@ -228,9 +228,11 @@ impl Program {
         Ok(JSType::Void)
     }
 
+    /// for/while/do-while
     fn parse_while_and_for(
         &mut self,
         mut index: usize,
+        is_do: bool,
         init: Option<&Box<Expr>>,
         test: &Box<Expr>,
         update: Option<&Box<Expr>>,
@@ -241,12 +243,18 @@ impl Program {
             _ = self.parse(index, init.as_ref())?;
         }
         let mut is_break = false;
+        let mut do_count = 0;
         loop {
             if is_break {
                 break;
             }
             let test = self.parse(index, test.as_ref())?;
-            if let JSType::Bool(flag) = test {
+            if let JSType::Bool(mut flag) = test {
+                do_count += 1;
+                if is_do && do_count == 1 {
+                    //do首次会执行
+                    flag = true;
+                }
                 if flag {
                     match body.as_ref() {
                         Expr::BlockStatement(vec) => {
@@ -277,7 +285,7 @@ impl Program {
             }
         }
         self.update_index(&mut index, false);
-        Ok(JSType::Void)
+        Ok(JSType::NULL)
     }
     ///语法解析及执行，使用递归处理所有语句
     fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
@@ -386,7 +394,7 @@ impl Program {
                 self.bind_local_arg(index, Some(variable.clone()), ident.clone(), result);
             }
             Expr::For(init, test, update, body) => {
-                _ = self.parse_while_and_for(index, Some(init), test, Some(update), body);
+                _ = self.parse_while_and_for(index, false, Some(init), test, Some(update), body);
             }
             Expr::ForIn(_, _) => {}
             Expr::ForOf(_, _) => {}
@@ -423,7 +431,10 @@ impl Program {
                 return result;
             }
             Expr::While(test, body) => {
-                _ = self.parse_while_and_for(index, None, test, None, body);
+                _ = self.parse_while_and_for(index, false, None, test, None, body);
+            }
+            Expr::DoWhile(test, body) => {
+                _ = self.parse_while_and_for(index, true, None, test, None, body);
             }
             Expr::Empty => {}
             _ => {
