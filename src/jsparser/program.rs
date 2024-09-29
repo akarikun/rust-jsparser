@@ -169,12 +169,12 @@ impl Program {
     fn parse_body_slot(&mut self, vec: &Vec<Expr>, mut index: usize) -> Result<JSType, String> {
         for i in vec {
             match i {
-                Expr::Break=>{
-                    // return Ok(JSType::Void);
-                },
-                Expr::Continue=>{
-                    // return Ok(JSType::Void);
-                },
+                Expr::Break => {
+                    return Ok(JSType::Break);
+                }
+                Expr::Continue => {
+                    return Ok(JSType::Continue);
+                }
                 Expr::Return(expr) => {
                     if let Expr::Function(a, b, c) = expr.as_ref() {
                         return Ok(JSType::Function(
@@ -240,19 +240,39 @@ impl Program {
         if let Some(init) = init {
             _ = self.parse(index, init.as_ref())?;
         }
+        let mut is_break = false;
         loop {
+            if is_break {
+                break;
+            }
             let test = self.parse(index, test.as_ref())?;
             if let JSType::Bool(flag) = test {
                 if flag {
-                    self.parse(index, body)?;
-                    if let Some(update) = update {
-                        self.parse(index, update)?;
+                    match body.as_ref() {
+                        Expr::BlockStatement(vec) => {
+                            for i in vec.iter().enumerate() {
+                                let result = self.parse(index, i.1)?;
+                                if matches!(result, JSType::Break) {
+                                    is_break = true;
+                                    break;
+                                } else if matches!(result, JSType::Continue) {
+                                    break;
+                                }
+                                if let Some(update) = update {
+                                    self.parse(index, update)?;
+                                }
+                            }
+                        }
+                        _ => {
+                            dbg!(&body);
+                            return Err(self.err("功能暂未实现"));
+                        }
                     }
                 } else {
                     break;
                 }
             } else {
-                dbg!(&test);
+                // dbg!(&test);
                 return Err(self.err(&format!("表达式异常")));
             }
         }
@@ -387,9 +407,9 @@ impl Program {
                 if let JSType::Bool(r) = result {
                     if r {
                         let left = left.as_ref();
-                        self.parse(index, left)?;
+                        return self.parse(index, left);
                     } else {
-                        self.parse(index, right.as_ref())?;
+                        return self.parse(index, right.as_ref());
                     }
                 } else {
                     return Err(self.err(&format!("if解析异常")));
@@ -418,6 +438,8 @@ impl Program {
 #[derive(Debug, Clone)]
 pub enum JSType {
     Void, // 无返回值
+    Continue,
+    Break,
     NULL,
     Int(i64),
     Float(f64),
@@ -436,6 +458,8 @@ impl JSType {
             JSType::Bool(t) => Ok(t.to_string()),
             JSType::Void => Ok("".to_string()),
             JSType::Function(t, _, _) => Ok(format!("function:{}", t.to_raw())),
+            JSType::Continue => Ok(format!("continue")),
+            JSType::Break => Ok(format!("break")),
         }
     }
     pub fn add(&self, other: &JSType) -> Result<JSType, String> {

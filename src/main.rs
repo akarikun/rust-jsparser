@@ -22,10 +22,14 @@ fn main() -> Result<(), String> {
     let abc = 0;
     while(abc<10){
         abc++;
-        // if(abc==5){ //暂未实现
-        //     break;
-        // }
-        log(abc);
+        log("first...");
+        if(abc==5){
+            continue;
+        }
+        if(abc==8){
+            break;
+        }
+        log("abc:"+abc);
     }
     // for(let i = 0;i<10;i++){
     //     if (i%2==0)
@@ -36,11 +40,11 @@ fn main() -> Result<(), String> {
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
-    lexer.print(); //打印token
+    // lexer.print(); //打印token
     let mut parser = Parser::new(Box::new(lexer));
 
     let mut program = parser.parse_program()?;
-    program.print_tree(); //打印树
+    // program.print_tree(); //打印树
 
     //绑定全局变量
     program.bind_value(String::from("a"), JSType::Int(12));

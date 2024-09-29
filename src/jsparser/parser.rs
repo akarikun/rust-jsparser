@@ -521,8 +521,6 @@ impl Parser {
         let body = self.parse_body(true)?;
         self.allow_break = false;
         self.allow_continue = false;
-        dbg!(&test);
-        dbg!(&body);
         Ok(Expr::While(Box::new(test), Box::new(body)))
     }
     fn parse_function_slot(&mut self) -> Result<Expr, String> {

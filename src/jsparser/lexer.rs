@@ -365,6 +365,13 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
+                    "continue"=>{
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Continue),
+                            line,
+                            self.column,
+                        )
+                    }
                     "for" => {
                         return Token::new(TokenType::Keyword(TokenKeyword::For), line, self.column)
                     }
