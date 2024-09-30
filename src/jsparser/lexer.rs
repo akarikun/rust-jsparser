@@ -55,7 +55,7 @@ impl ILexer for Lexer {
                     //+=
                     self.read_char();
                     Token::new(
-                        TokenType::Punctuator(TokenPunctuator::Add),
+                        TokenType::Punctuator(TokenPunctuator::ADD),
                         self.line,
                         self.column,
                     )
@@ -101,11 +101,23 @@ impl ILexer for Lexer {
                     )
                 }
             }
-            Some('*') => Token::new(
-                TokenType::Punctuator(TokenPunctuator::Multiply),
-                self.line,
-                self.column,
-            ),
+            Some('*') => {
+                let pc = self.peek_char();
+                if pc == Some('=') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::MUL),
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Multiply),
+                        self.line,
+                        self.column,
+                    )
+                }
+            }
             Some('/') => {
                 //注释或者是除号
                 let pc = self.peek_char();
@@ -119,6 +131,13 @@ impl ILexer for Lexer {
                         self.read_char();
                     }
                     return self.next_token();
+                } else if pc == Some('=') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::DIV),
+                        self.line,
+                        self.column,
+                    )
                 } else if pc == Some('*') {
                     // /*
                     self.read_char();
@@ -142,11 +161,28 @@ impl ILexer for Lexer {
                     )
                 }
             }
-            Some('%') => Token::new(
-                TokenType::Punctuator(TokenPunctuator::Modulo),
-                self.line,
-                self.column,
-            ),
+            Some('%') =>{
+                let pc = self.peek_char();
+                if pc == Some('/') {
+                    // //
+                    while let Some(ch) = self.ch {
+                        if ch == '\n' {
+                            self.read_char();
+                            break;
+                        }
+                        self.read_char();
+                    }
+                    return self.next_token();
+                }
+                else{
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::Modulo),
+                        self.line,
+                        self.column,
+                    )
+                }
+               
+            },
             Some('(') => Token::new(
                 TokenType::Punctuator(TokenPunctuator::LParen),
                 self.line,
@@ -311,11 +347,7 @@ impl ILexer for Lexer {
             }
             Some(ch) if ch.is_digit(10) => {
                 let (num, line) = self.read_number();
-                return Token::new(
-                    TokenType::Literal(num.to_string()),
-                    line,
-                    self.column,
-                );
+                return Token::new(TokenType::Literal(num.to_string()), line, self.column);
             }
             Some(ch) if ch.is_alphabetic() => {
                 let (ident, line) = self.read_identifier();
@@ -365,7 +397,7 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
-                    "continue"=>{
+                    "continue" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Continue),
                             line,
@@ -405,7 +437,7 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
-                    "while"=>{
+                    "while" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::While),
                             line,

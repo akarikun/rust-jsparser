@@ -212,7 +212,6 @@ impl Program {
         }
         Ok(JSType::Void)
     }
-
     /// for/while/do-while
     fn parse_while_and_for(
         &mut self,
@@ -280,17 +279,62 @@ impl Program {
                 let right = self.parse(index, _right)?;
                 return match &op {
                     Operator::Plus => left.add(&right),
+                    Operator::ADD => {
+                        let result = left.add(&right)?;
+                        if let Expr::Identifier(id) = _left.as_ref() {
+                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            return Ok(left);
+                        } else {
+                            return Err(self.err(&format!("暂不支持其他表达式")));
+                        }
+                    }
                     Operator::Subtract => left.subtract(&right),
+                    Operator::SUB => {
+                        let result = left.subtract(&right)?;
+                        if let Expr::Identifier(id) = _left.as_ref() {
+                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            return Ok(left);
+                        } else {
+                            return Err(self.err(&format!("暂不支持其他表达式")));
+                        }
+                    }
                     Operator::Multiply => left.multiply(&right),
+                    Operator::MUL=>{
+                        let result = left.multiply(&right)?;
+                        if let Expr::Identifier(id) = _left.as_ref() {
+                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            return Ok(left);
+                        } else {
+                            return Err(self.err(&format!("暂不支持其他表达式")));
+                        }
+                    },
                     Operator::Divide => left.divide(&right),
+                    Operator::DIV=>{
+                        let result = left.divide(&right)?;
+                        if let Expr::Identifier(id) = _left.as_ref() {
+                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            return Ok(left);
+                        } else {
+                            return Err(self.err(&format!("暂不支持其他表达式")));
+                        }
+                    }
                     Operator::Modulo => left.modulo(&right),
+                    Operator::MOD =>{
+                        let result = left.modulo(&right)?;
+                        if let Expr::Identifier(id) = _left.as_ref() {
+                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            return Ok(left);
+                        } else {
+                            return Err(self.err(&format!("暂不支持其他表达式")));
+                        }
+                    }
                     Operator::Equal => Ok(JSType::Bool(left.equal(&right))),
                     Operator::NE => Ok(JSType::Bool(!left.equal(&right))),
                     Operator::GT => Ok(JSType::Bool(left.GT(&right))),
                     Operator::GTE => Ok(JSType::Bool(left.GTE(&right))),
                     Operator::LT => Ok(JSType::Bool(left.LT(&right))),
                     Operator::LTE => Ok(JSType::Bool(left.LTE(&right))),
-                    _ => todo!("{:?}", &op),
+                    _ => unreachable!("{:?}", &op),
                 };
             }
             Expr::Unary(left, value) => {

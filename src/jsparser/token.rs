@@ -35,22 +35,27 @@ pub enum TokenPunctuator {
     ///+
     Plus, //+
     ///+=
-    Add, //+=
+    ADD, //+=
     ///++
     INC, //++
-    //-
+    /// -
     Minus, //-
     ///--
-    DEC, //--
-    ///-=
+    DEC, // --
+    /// -=
     SUB, //-=
     ///*
-    Multiply, //*
+    Multiply, // *
+    /// *=
+    MUL,
     /// /
     Divide, // /
-
+    /// /=
+    DIV,    
     /// %
     Modulo, // %
+    /// %=
+    MOD,
     ///(
     LParen, // (
     ///)
@@ -109,7 +114,7 @@ impl TokenPunctuator {
             TokenPunctuator::Equal => String::from("=="),
             TokenPunctuator::Congruent => String::from("==="),
             TokenPunctuator::Plus => String::from("+"),
-            TokenPunctuator::Add => String::from("+="),
+            TokenPunctuator::ADD => String::from("+="),
             TokenPunctuator::INC => String::from("++"),
             TokenPunctuator::Minus => String::from("-"),
             TokenPunctuator::DEC => String::from("--"),
@@ -140,6 +145,9 @@ impl TokenPunctuator {
             TokenPunctuator::NE => String::from("!="),
             TokenPunctuator::LShift => String::from("<<"),
             TokenPunctuator::RShift => String::from(">>"),
+            TokenPunctuator::MUL => String::from("*="),
+            TokenPunctuator::DIV =>String::from("/="),
+            TokenPunctuator::MOD =>String::from("%="),
         }
     }
     pub fn is_precedence(&self) -> bool {
@@ -159,6 +167,9 @@ impl TokenPunctuator {
             TokenPunctuator::BitOr => true,
             TokenPunctuator::BitXor => true,
             TokenPunctuator::BitAnd => true,
+
+            TokenPunctuator::ADD|TokenPunctuator::SUB|TokenPunctuator::MUL|TokenPunctuator::DIV|TokenPunctuator::MOD => true,
+
             _ => return false,
         }
     }

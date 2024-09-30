@@ -3,6 +3,12 @@ use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 use std::time::Instant;
 fn main() -> Result<(), String> {
     let input = r#"
+    let t = a+1;
+    log(t);
+    a+1;
+    log(a);
+    a+=1;
+    log(a);
     log(add(add(1,2,3),add(4,5)));
     log(test(11)(22));
     function test(val){

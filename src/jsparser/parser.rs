@@ -270,7 +270,7 @@ impl Parser {
             TokenType::Punctuator(t) => {
                 let cur = self.current_token.clone();
                 if matches!(t, TokenPunctuator::Semicolon) {
-                    if self.peek_token.is_eof(false){
+                    if self.peek_token.is_eof(false) {
                         self.next_token();
                         return Ok(Expr::Empty);
                     }
@@ -918,6 +918,13 @@ impl IParse for Parser {
                 TokenPunctuator::BitOr => Operator::BitOr,
                 TokenPunctuator::BitXor => Operator::BitXor,
                 TokenPunctuator::BitAnd => Operator::BitAnd,
+
+                TokenPunctuator::ADD => Operator::ADD,
+                TokenPunctuator::SUB => Operator::SUB,
+                TokenPunctuator::MUL => Operator::MUL,
+                TokenPunctuator::DIV => Operator::DIV,
+                TokenPunctuator::MOD => Operator::MOD,
+
                 _ => unreachable!(),
             },
             _ => unreachable!(),
@@ -942,6 +949,10 @@ impl IParse for Parser {
                 TokenPunctuator::BitOr => Precedence::BitOr,
                 TokenPunctuator::BitXor => Precedence::BitXor,
                 TokenPunctuator::BitAnd => Precedence::BitAnd,
+                TokenPunctuator::ADD
+                | TokenPunctuator::SUB
+                | TokenPunctuator::MUL
+                | TokenPunctuator::DIV => Precedence::MOV,
                 _ => Precedence::Lowest,
             },
             _ => Precedence::Lowest,
@@ -952,6 +963,9 @@ impl IParse for Parser {
             Operator::Plus | Operator::Subtract => Precedence::Sum,
             Operator::Multiply | Operator::Divide => Precedence::Product,
             Operator::Modulo => Precedence::Modulo,
+            Operator::ADD | Operator::SUB | Operator::MUL | Operator::DIV | Operator::MOD => {
+                Precedence::MOV
+            }
             _ => unreachable!(),
         }
     }
@@ -973,4 +987,6 @@ enum Precedence {
     Modulo,     // %
     Product,    // * /
     Prefix,     //
+
+    MOV, //+= -= *= /=  %=
 }

@@ -115,6 +115,12 @@ pub enum Operator {
     BitAnd,
     INC,
     DEC,
+    
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    MOD,
     // In,
     // Of,
 }
