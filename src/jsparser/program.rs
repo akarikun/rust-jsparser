@@ -1,6 +1,6 @@
-use std::{collections::HashMap, io::Empty};
-
+use super::err;
 use super::expr::{Expr, Operator, Variable};
+use std::collections::HashMap;
 
 pub struct Program {
     statements: Vec<Expr>,
@@ -148,22 +148,7 @@ impl Program {
     }
 
     fn err(&self, str: &str) -> String {
-        if cfg!(debug_assertions) {
-            let msg = format!(
-                //"\x1b[31m{}\x1b[39m,token:<\x1b[32m{}\x1b[39m>",
-                "{:?}\n{}",
-                self.statements.first().unwrap().to_raw(),
-                str,
-            );
-            panic!("\x1b[31m{}\x1b[39m", msg);
-        } else {
-            let msg = format!(
-                //"\x1b[31m{}\x1b[39m,token:<\x1b[32m{}\x1b[39m>",
-                "{:?}",
-                str,
-            );
-            return msg;
-        }
+        err(str)
     }
 
     fn parse_body_slot(&mut self, vec: &Vec<Expr>, mut index: usize) -> Result<JSType, String> {
@@ -308,6 +293,10 @@ impl Program {
                     _ => todo!("{:?}", &op),
                 };
             }
+            Expr::Unary(left, value) => {
+                dbg!(&left);
+                dbg!(&value);
+            }
             Expr::Literal(val, raw) => {
                 if raw.starts_with('"') || raw.starts_with('\'') {
                     return Ok(JSType::String(val.to_string()));
@@ -401,11 +390,8 @@ impl Program {
             Expr::Update(ident, op, _) => {
                 let val = self.parse(index, &ident)?.INC()?;
                 if let Expr::Identifier(id) = ident.as_ref() {
-                    // dbg!(&index);
-                    // dbg!(&val);
-                    // dbg!(&id);
-                    // dbg!(&val);
-                    self.bind_local_arg(index, None, id.clone(), val);
+                    _ = self.bind_local_arg(index, None, id.clone(), val.clone());
+                    return Ok(val);
                 } else {
                     return Err(self.err(&format!("暂不支持其他表达式")));
                 }
@@ -462,15 +448,15 @@ pub enum JSType {
 impl JSType {
     pub fn to_string(&self) -> Result<String, String> {
         match &self {
-            JSType::NULL => Err("Cannot read properties of null".to_string()),
+            JSType::NULL => Err(err("Cannot read properties of null")),
             JSType::Int(t) => Ok(t.to_string()),
             JSType::Float(t) => Ok(t.to_string()),
             JSType::String(t) => Ok(t.to_string()),
             JSType::Bool(t) => Ok(t.to_string()),
             JSType::Void => Ok("".to_string()),
-            JSType::Function(t, _, _) => Ok(format!("function:{}", t.to_raw())),
-            JSType::Continue => Ok(format!("continue")),
-            JSType::Break => Ok(format!("break")),
+            JSType::Function(t, _, _) => Ok(err(&format!("function:{}", t.to_raw()))),
+            JSType::Continue => Ok(err("continue")),
+            JSType::Break => Ok(err("break")),
         }
     }
     pub fn add(&self, other: &JSType) -> Result<JSType, String> {
@@ -488,7 +474,11 @@ impl JSType {
             (JSType::String(a), JSType::Float(b)) => Ok(JSType::String(format!("{}{}", a, b))),
             (JSType::String(a), JSType::Bool(b)) => Ok(JSType::String(format!("{}{}", a, b))),
             (JSType::Bool(a), JSType::String(b)) => Ok(JSType::String(format!("{}{}", a, b))),
-            _ => Err("Unsupported types for addition".to_string()),
+            _ => {
+                dbg!(&self);
+                dbg!(&other);
+                Err(err("Unsupported types for addition"))
+            }
         }
     }
 
@@ -498,7 +488,7 @@ impl JSType {
             (JSType::Float(a), JSType::Float(b)) => Ok(JSType::Float(a - b)),
             (JSType::Int(a), JSType::Float(b)) => Ok(JSType::Float(*a as f64 - b)),
             (JSType::Float(a), JSType::Int(b)) => Ok(JSType::Float(a - *b as f64)),
-            _ => Err("Unsupported types for subtraction".to_string()),
+            _ => Err(err("Unsupported types for subtraction")),
         }
     }
 
@@ -508,7 +498,7 @@ impl JSType {
             (JSType::Float(a), JSType::Float(b)) => Ok(JSType::Float(a * b)),
             (JSType::Int(a), JSType::Float(b)) => Ok(JSType::Float(*a as f64 * b)),
             (JSType::Float(a), JSType::Int(b)) => Ok(JSType::Float(a * *b as f64)),
-            _ => Err("Unsupported types for multiplication".to_string()),
+            _ => Err(err("Unsupported types for multiplication")),
         }
     }
 
@@ -516,33 +506,33 @@ impl JSType {
         match (self, other) {
             (JSType::Int(a), JSType::Int(b)) => {
                 if *b == 0 {
-                    Err("Cannot divide by zero".to_string())
+                    Err(err("Cannot divide by zero"))
                 } else {
                     Ok(JSType::Int(a / b))
                 }
             }
             (JSType::Float(a), JSType::Float(b)) => {
                 if *b == 0.0 {
-                    Err("Cannot divide by zero".to_string())
+                    Err(err("Cannot divide by zero"))
                 } else {
                     Ok(JSType::Float(a / b))
                 }
             }
             (JSType::Int(a), JSType::Float(b)) => {
                 if *b == 0.0 {
-                    Err("Cannot divide by zero".to_string())
+                    Err(err("Cannot divide by zero"))
                 } else {
                     Ok(JSType::Float(*a as f64 / b))
                 }
             }
             (JSType::Float(a), JSType::Int(b)) => {
                 if *b == 0 {
-                    Err("Cannot divide by zero".to_string())
+                    Err(err("Cannot divide by zero"))
                 } else {
                     Ok(JSType::Float(a / *b as f64))
                 }
             }
-            _ => Err("Unsupported types for division".to_string()),
+            _ => Err(err("Unsupported types for division")),
         }
     }
 
@@ -550,33 +540,33 @@ impl JSType {
         match (self, other) {
             (JSType::Int(a), JSType::Int(b)) => {
                 if *b == 0 {
-                    Err("Cannot modulo by zero".to_string())
+                    Err(err("Cannot modulo by zero"))
                 } else {
                     Ok(JSType::Int(a % b))
                 }
             }
             (JSType::Float(a), JSType::Float(b)) => {
                 if *b == 0.0 {
-                    Err("Cannot modulo by zero".to_string())
+                    Err(err("Cannot modulo by zero"))
                 } else {
                     Ok(JSType::Float(a % b))
                 }
             }
             (JSType::Int(a), JSType::Float(b)) => {
                 if *b == 0.0 {
-                    Err("Cannot modulo by zero".to_string())
+                    Err(err("Cannot modulo by zero"))
                 } else {
                     Ok(JSType::Float(*a as f64 % b))
                 }
             }
             (JSType::Float(a), JSType::Int(b)) => {
                 if *b == 0 {
-                    Err("Cannot modulo by zero".to_string())
+                    Err(err("Cannot modulo by zero"))
                 } else {
                     Ok(JSType::Float(a % *b as f64))
                 }
             }
-            _ => Err("Unsupported types for modulo".to_string()),
+            _ => Err(err("Unsupported types for modulo")),
         }
     }
 
@@ -640,16 +630,16 @@ impl JSType {
     pub fn INC(&self) -> Result<JSType, String> {
         match self {
             JSType::Int(t) => Ok(JSType::Int(t + 1)),
-            _ => Err(format!(
-                "Uncaught SyntaxError: Invalid left-hand side expression in postfix operation"
+            _ => Err(err(
+                "Uncaught SyntaxError: Invalid left-hand side expression in postfix operation",
             )),
         }
     }
     pub fn DEC(&self) -> Result<JSType, String> {
         match self {
             JSType::Int(t) => Ok(JSType::Int(t - 1)),
-            _ => Err(format!(
-                "Uncaught SyntaxError: Invalid left-hand side expression in postfix operation"
+            _ => Err(err(
+                "Uncaught SyntaxError: Invalid left-hand side expression in postfix operation",
             )),
         }
     }

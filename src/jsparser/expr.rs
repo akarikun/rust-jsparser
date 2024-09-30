@@ -1,16 +1,15 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Empty, //base
-    Unary(Unary, Box<Expr>),
-    Unexpected(String), //异常
+    Empty,                   //base
+    Unary(Unary, Box<Expr>), // !a  !~+-a
+    Unexpected(String),      //异常
     Identifier(String),
 
     TemplateLiteral(Box<Expr>, Box<Expr>), //``
     Literal2(String), //保留原始raw    标记为2的表示未确定最终格式，最后需要统一规划
     Literal(String, String),
     Assignment(String, Box<Expr>), // a=b
-    // Prefix(Prefix, Box<Expr>),     // !a  -1
-    Call(Box<Expr>, Vec<Expr>), // a()  a.b()
+    Call(Box<Expr>, Vec<Expr>),    // a()  a.b()
 
     Member(Box<Expr>, Box<Expr>), //a.b a[b]
     Sequence(Vec<Expr>),          // a[1,2,3,4]
@@ -31,7 +30,7 @@ pub enum Expr {
     Continue,
     Function(Box<Expr>, Vec<Expr>, Box<Expr>), //function
     While(Box<Expr>, Box<Expr>),
-    DoWhile(Box<Expr>, Box<Expr>),
+    DoWhile(Box<Expr>, Box<Expr>), //存放顺序与while一致
 }
 
 impl Expr {
