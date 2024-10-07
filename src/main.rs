@@ -3,50 +3,18 @@ use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 use std::time::Instant;
 fn main() -> Result<(), String> {
     let input = r#"
-    let t = a+1;
+    function foo(a){
+        let i=0;
+        for(;i<a;i++){
+            log(i+" |");
+        }
+        return a;
+    }
+    foo(10);
+    log("--------");
+    let t = 1+foo(20);
+    log("--------");
     log(t);
-    a+1;
-    log(a);
-    a+=1;
-    log(a);
-    log(add(add(1,2,3),add(4,5)));
-    log(test(11)(22));
-    function test(val){
-        for(let i = 0;i<10;i++){
-            if (i%2==0)
-                log("test:"+i+" "+(i+val+a)) 
-            else
-                log("test:"+i+" "+(i-val-a));
-        }
-        return function(abc){
-            return val+abc+a;
-        }
-    }
-    log("------");
-    let abc = 0;
-    do {
-        abc++;
-        log("abc:"+abc);
-    } while(abc<10)
-    while(abc<10){
-        abc++;
-        log("first...");
-        if(abc==5){
-            continue;
-        }
-        if(abc==8){
-            break;
-        }
-        log("abc:"+abc);
-    }
-    for(let i = 0;i<10;i++){
-        if (i%2==0)
-            log(i) 
-        else
-            log(i);
-    }
-    log(val);//val is not defined 
-    log("123");
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));

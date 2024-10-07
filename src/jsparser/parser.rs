@@ -101,7 +101,9 @@ impl Parser {
                 Expr::Identifier(_)
                 | Expr::Literal(_, _)
                 | Expr::Unary(_, _)
-                | Expr::Update(_, _, _) => {
+                // | Expr::Update(_, _, _)
+                | Expr::Call(_, _)
+                 => {
                     left = Expr::Infix(Box::new(left), op, Box::new(right));
                 }
                 Expr::Infix(left2, op2, right2) => {
@@ -669,8 +671,9 @@ impl Parser {
                 break;
             }
             let binary = self.parse(false)?;
-            if !self.is_valid(&binary) {
-                return Err(self.err("Unexpected token"));
+            if !self.is_valid(&binary) && !matches!(binary,Expr::Empty) {
+                dbg!(&binary);
+                return Err(self.err(&format!("Unexpected token {:?}",binary.to_raw())));
             }
             if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
                 self.next_token();
@@ -678,7 +681,7 @@ impl Parser {
             v.push(binary);
         }
         if !self.current_token.is_ptor(TokenPunctuator::RParen) {
-            return Err(self.err("Unexpected token"));
+            return Err(self.err(&format!("Unexpected token {:?}",self.current_token.desc())));
         }
         self.next_token(); //)
 

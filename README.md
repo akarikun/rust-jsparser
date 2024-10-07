@@ -2,11 +2,6 @@
 
 ast树参考 [parse.html](https://esprima.org/demo/parse.html)
 
-
-###### 当前程序用到current_token(cur)以及peek_token(peek)表示当前跟下个token
-###### 由于我最开始是两个token各种match实现的，到后面写到解析树时用递归实现想到解析token也可以用递归,然后搜了一下，果然。。。
-
-解析token
 | 表达式 | 标记 | 备注 | 解析前提条件 |
 | --- | --- | --- | --- |
 | a+b | \<base_expr> | 四则运算,bool表达式等，a(),a[1]这种都属于<br/>这里是最复杂的，还需要考虑a()\[1]()[1]...这种套娃的还有a.b这种复合类型等 | cur=ident <br /> peek= +-*/[(.等 |
@@ -18,22 +13,18 @@ use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 use std::time::Instant;
 fn main() -> Result<(), String> {
     let input = r#"
-    log(add(add(1,2,3),add(4,5)));
-    log(test(11)(22));
-    function test(val){
-        for(let i = 0;i<10;i++){
-            if (i%2==0)
-                log("test:"+i+" "+(i+val+a)) 
-            else
-                log("test:"+i+" "+(i-val-a));
+    function foo(a){
+        let i=0;
+        for(;i<a;i++){
+            log(i+" |");
         }
-        return function(abc){
-            return val+abc+a;
-        }
+        return a;
     }
-    log("------");
-    log(val);//val is not defined 
-    test(22);
+    foo(10);
+    log("--------");
+    let t = 1+foo(20);
+    log("--------");
+    log(t);
 "#;
     let start = Instant::now();
     let mut lexer = Lexer::new(String::from(input));
@@ -78,44 +69,59 @@ fn main() -> Result<(), String> {
 ```
 ```
 /*--------print--------*/
-<log> <(> <add> <(> <add> <(> <1> <,> <2> <,> <3> <)> <,> <add> <(> <4> <,> <5> <)> <)> <)> <;>
-<log> <(> <test> <(> <11> <)> <(> <22> <)> <)> <;>
-<key:function> <test> <(> <val> <)> <{>
-<key:for> <(> <key:let> <i> <=> <0> <;> <i> <<> <10> <;> <i> <++> <)> <{>
-<key:if> <(> <i> <%> <2> <==> <0> <)>
-<log> <(> <"test:"> <+> <i> <+> <" "> <+> <(> <i> <+> <val> <+> <a> <)> <)>
-<key:else>
-<log> <(> <"test:"> <+> <i> <+> <" "> <+> <(> <i> <-> <val> <-> <a> <)> <)> <;>
+<key:function> <foo> <(> <a> <)> <{>
+<key:let> <i> <=> <0> <;>
+<key:for> <(> <;> <i> <<> <a> <;> <i> <++> <)> <{>
+<log> <(> <i> <+> <" |"> <)> <;>
 <}>
-<key:return> <key:function> <(> <abc> <)> <{>
-<key:return> <val> <+> <abc> <+> <a> <;> 
+<key:return> <a> <;>
 <}>
-<}>
-<log> <(> <"------"> <)> <;>
-<log> <(> <val> <)> <;>
-<test> <(> <22> <)> <;>
+<foo> <(> <10> <)> <;>
+<log> <(> <"--------"> <)> <;>
+<key:let> <t> <=> <1> <+> <foo> <(> <20> <)> <;>
+<log> <(> <"--------"> <)> <;>
+<log> <(> <t> <)> <;>
 /*-------- end --------*/
 /*--------tree--------*/
-(1) | Call(Identifier("log"), [Call(Identifier("add"), [Call(Identifier("add"), [Literal("1", "1"), Literal("2", "2"), Literal("3", "3")]), Call(Identifier("add"), [Literal("4", "4"), Literal("5", "5")])])])
-(2) | Call(Identifier("log"), [Call(Call(Identifier("test"), [Literal("11", "11")]), [Literal("22", "22")])])
-(3) | Function(Identifier("test"), [Identifier("val")], BlockStatement([For(Variable2([(Let, "i", Literal("0", "0"))]), Infix(Identifier("i"), LT, Literal("10", "10")), Update(Identifier("i"), "++", false), BlockStatement([If(Infix(Infix(Identifier("i"), Modulo, Literal("2", "2")), Equal, Literal("0", "0")), Call(Identifier("log"), [Infix(Infix(Infix(Literal("test:", "\"test:\""), Plus, Identifier("i")), Plus, Literal(" ", "\" \"")), Plus, Infix(Infix(Identifier("i"), Plus, Identifier("val")), Plus, Identifier("a")))]), Call(Identifier("log"), [Infix(Infix(Infix(Literal("test:", "\"test:\""), Plus, Identifier("i")), Plus, Literal(" ", "\" \"")), Plus, Infix(Infix(Identifier("i"), Subtract, Identifier("val")), Subtract, Identifier("a")))]))])), Return(Function(Empty, [Identifier("abc")], BlockStatement([Return(Infix(Infix(Identifier("val"), Plus, Identifier("abc")), Plus, Identifier("a")))])))]))
-(4) | Call(Identifier("log"), [Literal("------", "\"------\"")])
-(5) | Call(Identifier("log"), [Identifier("val")])
-(6) | Call(Identifier("test"), [Literal("22", "22")])
+(1) | Function(Identifier("foo"), [Identifier("a")], BlockStatement([Variable2([(Let, "i", Literal("0", "0"))]), For(Empty, Infix(Identifier("i"), LT, Identifier("a")), Update(Identifier("i"), "++", false), BlockStatement([Call(Identifier("log"), [Infix(Identifier("i"), Plus, Literal(" |", "\" |\""))])])), Return(Identifier("a"))]))
+(2) | Call(Identifier("foo"), [Literal("10", "10")])
+(3) | Call(Identifier("log"), [Literal("--------", "\"--------\"")])
+(4) | Variable2([(Let, "t", Infix(Literal("1", "1"), Plus, Call(Identifier("foo"), [Literal("20", "20")])))])
+(5) | Call(Identifier("log"), [Literal("--------", "\"--------\"")])
+(6) | Call(Identifier("log"), [Identifier("t")])
 /*-----tree-end------*/
- log => [Int(15)]
- log => [String("test:0, 23")]
- log => [String("test:1, -22")]
- log => [String("test:2, 25")]
- log => [String("test:3, -20")]
- log => [String("test:4, 27")]
- log => [String("test:5, -18")]
- log => [String("test:6, 29")]
- log => [String("test:7, -16")]
- log => [String("test:8, 31")]
- log => [String("test:9, -14")]
- log => [Int(45)]
- log => [String("------")]
-"Uncaught ReferenceError: val is not defined"
-解析耗时: 5396µs (5ms)
+ log => [String("0 |")]
+ log => [String("1 |")]
+ log => [String("2 |")]
+ log => [String("3 |")]
+ log => [String("4 |")]
+ log => [String("5 |")]
+ log => [String("6 |")]
+ log => [String("7 |")]
+ log => [String("8 |")]
+ log => [String("9 |")]
+ log => [String("--------")]
+ log => [String("0 |")]
+ log => [String("1 |")]
+ log => [String("2 |")]
+ log => [String("3 |")]
+ log => [String("4 |")]
+ log => [String("5 |")]
+ log => [String("6 |")]
+ log => [String("7 |")]
+ log => [String("8 |")]
+ log => [String("9 |")]
+ log => [String("10 |")]
+ log => [String("11 |")]
+ log => [String("12 |")]
+ log => [String("13 |")]
+ log => [String("14 |")]
+ log => [String("15 |")]
+ log => [String("16 |")]
+ log => [String("17 |")]
+ log => [String("18 |")]
+ log => [String("19 |")]
+ log => [String("--------")]
+ log => [Int(21)]
+解析耗时: 9518µs (9ms)
 ```
