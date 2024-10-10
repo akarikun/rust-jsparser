@@ -506,7 +506,7 @@ impl Parser {
             let expr = self.parse(false)?;
             if matches!(
                 expr,
-                Expr::Assignment2(_) | Expr::Call(_, _) | Expr::Return(_)
+                Expr::Assignment2(_) | Expr::Call(_, _) | Expr::Return(_) | Expr::Break
             ) {
                 return Ok(expr);
             } else {
@@ -664,24 +664,27 @@ impl Parser {
 
         // Expr::For((), (), (), ())
         let mut v = Vec::new();
-        for _ in 0..3 {
+        for t in 0..3 {
             if v.len() == 2 && self.current_token.is_ptor(TokenPunctuator::RParen) {
                 //for(;;)
                 v.push(Expr::Empty);
                 break;
             }
             let binary = self.parse(false)?;
-            if !self.is_valid(&binary) && !matches!(binary,Expr::Empty) {
+            if !self.is_valid(&binary) && !matches!(binary, Expr::Empty) {
                 dbg!(&binary);
-                return Err(self.err(&format!("Unexpected token {:?}",binary.to_raw())));
+                return Err(self.err(&format!("Unexpected token {:?}", binary.to_raw())));
             }
             if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
+                if t == 2 {//[最后]不能有;
+                    return Err(self.err(&format!("Unexpected token {:?}", self.current_token.raw)));
+                }
                 self.next_token();
             }
             v.push(binary);
         }
         if !self.current_token.is_ptor(TokenPunctuator::RParen) {
-            return Err(self.err(&format!("Unexpected token {:?}",self.current_token.desc())));
+            return Err(self.err(&format!("Unexpected token {:?}", self.current_token.desc())));
         }
         self.next_token(); //)
 

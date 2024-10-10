@@ -96,8 +96,7 @@ impl Program {
                 if let Some((v, val)) = self.local_value[index].get_mut(&arg) {
                     if typ == None {
                         *val = value.clone();
-                    } else if !(matches!(v, Variable::Var)
-                        && typ.clone().unwrap() == Variable::Var)
+                    } else if !(matches!(v, Variable::Var) && typ.clone().unwrap() == Variable::Var)
                     {
                         return Err(
                             self.err("Uncaught TypeError: Assignment to constant variable.")
@@ -174,7 +173,7 @@ impl Program {
                         c.as_ref().clone(),
                     ));
                 } else if matches!(expr.as_ref(), Expr::Empty) {
-                    return Ok(JSType::Void);
+                    return Ok(JSType::Return);
                 } else if matches!(
                     expr.as_ref(),
                     Expr::Identifier(_)
@@ -193,6 +192,9 @@ impl Program {
                 let _expr = self.parse(index, _expr)?;
                 if matches!(_expr, JSType::Void | JSType::NULL) {
                     return Ok(JSType::PASS);
+                }
+                if matches!(_expr,JSType::Return){
+                    return Ok(_expr);
                 }
                 return Err(self.err(&format!("{:?}", _expr)));
             }
@@ -213,59 +215,83 @@ impl Program {
         }
         Ok(JSType::Void)
     }
+
     /// for/while/do-while
     fn parse_while_and_for(
         &mut self,
         mut index: usize,
         is_do: bool,
-        init: Option<&Box<Expr>>,
-        test: &Box<Expr>,
-        update: Option<&Box<Expr>>,
+        init: Option<&Box<Expr>>,   //let i=0;
+        test: &Box<Expr>,           //i<10;
+        update: Option<&Box<Expr>>, //i++;
         body: &Box<Expr>,
     ) -> Result<JSType, String> {
+        let mut action = |p: &mut Self, is_break: &mut bool,is_return:&mut bool| -> Result<_, String> {
+            match body.as_ref() {
+                Expr::BlockStatement(vec) => {
+                    for i in vec.iter().enumerate() {
+                        let result = p.parse(index, i.1)?;
+                        if matches!(result, JSType::Break) {
+                            *is_break = true;
+                            break;
+                        } else if matches!(result, JSType::Continue) {
+                            break;
+                        }
+                        else if  matches!(result, JSType::Return) {
+                            *is_return = true;
+                            return Ok(JSType::Return);
+                        }
+                    }
+                    if let Some(update) = update {
+                        p.parse(index, update)?;
+                    }
+                }
+                Expr::Call(_, _) => {
+                    p.parse(index, body)?;
+                    if let Some(update) = update {
+                        p.parse(index, update)?;
+                    }
+                }
+                _ => {
+                    dbg!(&body);
+                    return Err(p.err("功能暂未实现"));
+                }
+            }
+            Ok(JSType::NULL)
+        };
+
         if let Some(init) = init {
             _ = self.parse(index, init.as_ref())?;
         }
         let mut is_break = false;
+        let mut is_return = false;
         let mut do_count = 0;
         loop {
             if is_break {
                 break;
             }
-            let test = self.parse(index, test.as_ref())?;
-            if let JSType::Bool(mut flag) = test {
-                do_count += 1;
-                if is_do && do_count == 1 {
-                    //do首次会执行
-                    flag = true;
-                }
-                if flag {
-                    match body.as_ref() {
-                        Expr::BlockStatement(vec) => {
-                            for i in vec.iter().enumerate() {
-                                let result = self.parse(index, i.1)?;
-                                if matches!(result, JSType::Break) {
-                                    is_break = true;
-                                    break;
-                                } else if matches!(result, JSType::Continue) {
-                                    break;
-                                }
-                            }
-                            if let Some(update) = update {
-                                self.parse(index, update)?;
-                            }
-                        }
-                        _ => {
-                            dbg!(&body);
-                            return Err(self.err("功能暂未实现"));
-                        }
+            if is_return {
+                return Ok(JSType::Return);
+            }
+            if matches!(test.as_ref(), Expr::Empty) {
+                _ = action(self, &mut is_break,&mut is_return);
+            } else {
+                let test = self.parse(index, test.as_ref())?;
+                if let JSType::Bool(mut flag) = test {
+                    do_count += 1;
+                    if is_do && do_count == 1 {
+                        //do首次会执行
+                        flag = true;
+                    }
+                    if flag {
+                        _ = action(self, &mut is_break,&mut is_return);
+                    } else {
+                        break;
                     }
                 } else {
-                    break;
+                    dbg!(&test);
+                    return Err(self.err(&format!("表达式异常")));
                 }
-            } else {
-                // dbg!(&test);
-                return Err(self.err(&format!("表达式异常")));
             }
         }
         Ok(JSType::NULL)
@@ -432,8 +458,11 @@ impl Program {
             }
             Expr::For(init, test, update, body) => {
                 self.update_index(&mut index, true);
-                _ = self.parse_while_and_for(index, false, Some(init), test, Some(update), body);
+                let result = self.parse_while_and_for(index, false, Some(init), test, Some(update), body)?;
                 self.update_index(&mut index, false);
+                if matches!(result,JSType::Return){
+                    return Ok(JSType::Return);
+                }
             }
             Expr::ForIn(_, _) => {}
             Expr::ForOf(_, _) => {}
@@ -451,9 +480,12 @@ impl Program {
                 if let JSType::Bool(r) = result {
                     if r {
                         let left = left.as_ref();
-                        return self.parse(index, left);
+                        let result = self.parse_body_slot(left, index)?;
+                        return Ok(result);
                     } else {
-                        return self.parse(index, right.as_ref());
+                        let right = right.as_ref();
+                        let result = self.parse_body_slot(right, index)?;
+                        return Ok(result);
                     }
                 } else {
                     return Err(self.err(&format!("if解析异常")));
