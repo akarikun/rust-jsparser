@@ -218,6 +218,11 @@ impl ILexer for Lexer {
                 self.line,
                 self.column,
             ),
+            Some(':') => Token::new(
+                TokenType::Punctuator(TokenPunctuator::Colon),
+                self.line,
+                self.column,
+            ),
             Some('.') => Token::new(
                 TokenType::Punctuator(TokenPunctuator::Dot),
                 self.line,
@@ -238,7 +243,8 @@ impl ILexer for Lexer {
                 self.line,
                 self.column,
             ),
-            Some('"') => {
+            Some('"')|Some('\'') => {
+                let p = self.ch.clone();
                 self.read_char();
                 let mut result = String::new();
                 let line = self.line;
@@ -255,7 +261,7 @@ impl ILexer for Lexer {
                     }
                     result.push(ch);
                     self.read_char();
-                    if self.ch == Some('"') {
+                    if self.ch == p {
                         self.read_char();
                         break;
                     }

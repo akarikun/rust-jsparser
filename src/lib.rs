@@ -79,14 +79,14 @@ mod tests {
     }
     #[test]
     fn test_for() {
-                let _ = run(r#"
+        let _ = run(r#"
             for(let i = 0;i<10;i++){
                 log(i);
             }
         "#
-                .to_string());
+        .to_string());
 
-                let _ = run(r#"
+        let _ = run(r#"
                 let i = 0;
                 for(;;){
                     if(i<10){
@@ -98,9 +98,9 @@ mod tests {
                     i++;
                 }
             "#
-                    .to_string());
+        .to_string());
 
-            let _ = run(r#"
+        let _ = run(r#"
             let i = 0;
             for(;;i++;){
                 if(i<10)
@@ -109,7 +109,14 @@ mod tests {
                     break;
             }
         "#
-            .to_string());
+        .to_string());
     }
-   
+
+    #[test]
+    fn test_json() {
+        let _ = run(r#"
+            let json = {a:1,"b":2,'c':3,d:function(){},e:{a:1}} //[a+1]:5 暂未实现
+        "#
+        .to_string());
+    }
 }

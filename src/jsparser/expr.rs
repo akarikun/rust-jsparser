@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Empty,                   //base
@@ -31,6 +33,8 @@ pub enum Expr {
     Function(Box<Expr>, Vec<Expr>, Box<Expr>), //function
     While(Box<Expr>, Box<Expr>),
     DoWhile(Box<Expr>, Box<Expr>), //存放顺序与while一致
+
+    Object(HashMap<String,Expr>), //json
 }
 
 impl Expr {
@@ -42,7 +46,7 @@ impl Expr {
             Expr::Identifier(t) => t.to_string(),
             // Expr::TemplateLiteral(expr, expr1) => todo!(),
             // Expr::Literal2(_) => todo!(),
-            // Expr::Literal(_, _) => todo!(),
+            Expr::Literal(t, _) => t.to_string(),
             // Expr::Assignment(_, expr) => todo!(),
             // Expr::Call(expr, vec) => todo!(),
             // Expr::Member(expr, expr1) => todo!(),
@@ -62,7 +66,7 @@ impl Expr {
             // Expr::Break => todo!(),
             // Expr::Continue => todo!(),
             // Expr::Function(expr, vec, expr1) => todo!(),
-            _ => format!(""),
+            _ => format!("<{:?}>",self),
         }
     }
 }

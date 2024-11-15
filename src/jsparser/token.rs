@@ -87,6 +87,8 @@ pub enum TokenPunctuator {
     RShift, //>>
     ///;
     Semicolon, //;
+    /// :
+    Colon, //:
     ///.
     Dot, //.
     ///,
@@ -125,6 +127,7 @@ impl TokenPunctuator {
             TokenPunctuator::LParen => String::from("("),
             TokenPunctuator::RParen => String::from(")"),
             TokenPunctuator::Semicolon => String::from(";"),
+            TokenPunctuator::Colon => String::from(":"),
             TokenPunctuator::Dot => String::from("."),
             TokenPunctuator::Comma => String::from(","),
             TokenPunctuator::BitAnd => String::from("&"),

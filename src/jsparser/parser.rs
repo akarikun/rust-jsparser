@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{
     expr::{Expr, Operator, Unary, Variable},
     lexer::ILexer,
@@ -240,26 +242,22 @@ impl Parser {
                     let expr = self.parser_infix(Expr::Empty, Precedence::Lowest)?;
                     skip_semicolon(self);
                     return Ok(expr);
-                } else if self.peek_token.is_ptor(TokenPunctuator::INC) {
-                    //a++
+                } else if self.peek_token.is_update() {
+                    //a++ a--
+                    let p = if self.peek_token.is_ptor(TokenPunctuator::INC) {
+                        format!("++")
+                    } else {
+                        format!("--")
+                    };
                     self.next_token();
                     self.next_token();
-                    let expr = Expr::Update(
-                        Box::new(Expr::Identifier(ident.clone())),
-                        format!("++"),
-                        false,
-                    );
+                    let expr = Expr::Update(Box::new(Expr::Identifier(ident.clone())), p, false);
                     skip_semicolon(self);
                     return Ok(expr);
-                } else if self.peek_token.is_ptor(TokenPunctuator::DEC) {
-                    //a--
+                } else if self.peek_token.is_ptor(TokenPunctuator::Colon) {
+                    let expr = self.parse_base_typ(&self.current_token.clone())?;
                     self.next_token();
-                    self.next_token();
-                    return Ok(Expr::Update(
-                        Box::new(Expr::Identifier(ident.clone())),
-                        format!("--"),
-                        false,
-                    ));
+                    return Ok(expr);
                 }
                 let cur = self.current_token.clone();
                 let chk = self.checked_paren(&self.peek_token.typ.clone())?;
@@ -271,6 +269,10 @@ impl Parser {
             }
             TokenType::Punctuator(t) => {
                 let cur = self.current_token.clone();
+                if matches!(t, TokenPunctuator::LCParen) {
+                    let expr = self.parse_json()?;
+                    return Ok(expr);
+                }
                 if matches!(t, TokenPunctuator::Semicolon) {
                     if self.peek_token.is_eof(false) {
                         self.next_token();
@@ -283,12 +285,17 @@ impl Parser {
                     let expr = self.parse_base_typ(&cur)?;
                     return Ok(expr);
                 }
-                if matches!(t, TokenPunctuator::INC) {
+                if matches!(t, TokenPunctuator::INC | TokenPunctuator::DEC) {
                     //++a
+                    let p = if *t == TokenPunctuator::INC {
+                        format!("++")
+                    } else {
+                        format!("--")
+                    };
                     if self.peek_token.is_ident() {
                         self.next_token();
                         let ident = self.checked_base()?;
-                        let expr = Expr::Update(Box::new(ident), format!("++"), true);
+                        let expr = Expr::Update(Box::new(ident), p, true);
                         if self.current_token.is_complex() {
                             // let result = self.parser_infix(expr.clone(), Precedence::Lowest)?;
                             // skip_semicolon(self);
@@ -310,7 +317,8 @@ impl Parser {
                     let expr = self.parse_base_typ(&cur)?;
                     return Ok(expr);
                 }
-                panic!()
+                dbg!(&cur);
+                panic!();
             }
             TokenType::Keyword(t) => {
                 //let a = <Expr>;
@@ -474,6 +482,50 @@ impl Parser {
         token
     }
 
+    fn parse_json(&mut self) -> Result<Expr, String> {
+        self.next_token(); //{
+        let mut map = HashMap::new();
+        loop {
+            if self.current_token.is_ptor(TokenPunctuator::Comma){
+                if map.len() == 0 {
+                    return Err(self.err("Unexpected token"));
+                }
+                self.next_token();
+            }
+            if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                self.next_token(); //}
+                break;
+            }
+            if self.current_token.is_eof(false) {
+                if map.len() == 0 {
+                    return Err(self.err("Unexpected end of input"));
+                } 
+                break;
+            }
+            let expr = self.parse(false)?;
+            //还要再判断下expr类型,可以是'a',a,[a]表达式
+            // dbg!(&expr);
+            let key = expr.to_raw();
+            // dbg!(&key);
+            if self.current_token.is_ptor(TokenPunctuator::Colon){
+                self.next_token();//:
+            }
+            else if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                self.next_token(); //}
+                map.insert(key, Expr::Empty);
+                break;
+            } 
+            else if self.current_token.is_ptor(TokenPunctuator::Comma) {
+                self.next_token();//,
+            }
+            self.allow_fn_name_empty = true;
+            let expr = self.parse(false)?;
+            self.allow_fn_name_empty = false;
+            map.insert(key, expr);
+        }
+        // dbg!(&map);
+        Ok(Expr::Object(map))
+    }
     fn parse_body(&mut self, allow_single: bool) -> Result<Expr, String> {
         if !allow_single && !self.current_token.is_ptor(TokenPunctuator::LCParen) {
             return Err(self.err("Unexpected token"));
@@ -676,7 +728,8 @@ impl Parser {
                 return Err(self.err(&format!("Unexpected token {:?}", binary.to_raw())));
             }
             if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
-                if t == 2 {//[最后]不能有;
+                if t == 2 {
+                    //[最后]不能有;
                     return Err(self.err(&format!("Unexpected token {:?}", self.current_token.raw)));
                 }
                 self.next_token();

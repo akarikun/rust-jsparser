@@ -512,6 +512,11 @@ impl Program {
             Expr::DoWhile(test, body) => {
                 _ = self.parse_while_and_for(index, true, None, test, None, body);
             }
+            Expr::Object(map)=>{
+                // for n in map{
+                //     println!("{}={}",n.0,n.1.to_raw());
+                // }
+            }
             Expr::Empty => {}
             _ => {
                 dbg!(&e);
