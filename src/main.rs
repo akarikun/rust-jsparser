@@ -2,22 +2,18 @@ mod jsparser;
 use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 use std::time::Instant;
 fn main() -> Result<(), String> {
-    let input = r#"
-    function foo(a){
-        let i=0;
-        for(;i<a;i++){
-            log(i+" |");
-        }
-        return a;
+    _ = run(r#"
+    for(let i=0;i<10;i++){
+        log(i)
     }
-    foo(10);
-    log("--------");
-    let t = 1+foo(20);
-    log("--------");
-    log(t);
-"#;
+"#
+    .into());
+    Ok(())
+}
+
+fn run(code: String) -> Result<(), String> {
     let start = Instant::now();
-    let mut lexer = Lexer::new(String::from(input));
+    let mut lexer = Lexer::new(String::from(code));
     lexer.print(); //打印token
     let mut parser = Parser::new(Box::new(lexer));
 
@@ -52,6 +48,89 @@ fn main() -> Result<(), String> {
     let duration = start.elapsed();
     let micros = duration.as_micros();
     let millis = duration.as_millis();
-    println!("解析耗时: {:?}µs ({}ms)", micros, millis);
+    println!("解析耗时: {:?}µs ({}ms)\n", micros, millis);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_log() {
+        _ = run("log(1);".into());
+    }
+
+    #[test]
+    fn test_fn1() {
+        let _ = run(r#"
+    function foo(a){
+        for(let i=0;i<a;i++)
+            log(i+" |");
+        //log(i);                  //Uncaught ReferenceError: i is not defined
+        return a;
+    }
+    //log(i);                      //Uncaught ReferenceError: i is not defined
+"#
+        .to_string());
+    }
+    #[test]
+    fn test_fn2() {
+        let _ = run(r#"
+            let i = 0;
+            function foo(){
+                for(;;i++){
+                    if(i<10)
+                        log(i);
+                    else
+                        return;
+                }
+                log(123);
+            }
+            foo();
+        "#
+        .to_string());
+    }
+    #[test]
+    fn test_for() {
+        let _ = run(r#"
+            for(let i = 0;i<10;i++){
+                log(i);
+            }
+        "#
+        .to_string());
+
+        let _ = run(r#"
+                let i = 0;
+                for(;;){
+                    if(i<10){
+                        log(i);
+                    }
+                    else{
+                        break;
+                    }
+                    i++;
+                }
+            "#
+        .to_string());
+
+        let _ = run(r#"
+            let i = 0;
+            for(;;i++;){
+                if(i<10)
+                    log(i);
+                else
+                    break;
+            }
+        "#
+        .to_string());
+    }
+
+    #[test]
+    fn test_json() {
+        let _ = run(r#"
+            let json = {[1+1]:2} //[a+1]:5 暂未实现
+        "#
+        .to_string());
+    }
 }
