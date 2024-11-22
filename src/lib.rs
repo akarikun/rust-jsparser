@@ -3,6 +3,9 @@ use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 extern crate wasm_bindgen;
 use wasm_bindgen::prelude::*;
 
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 #[wasm_bindgen]
 extern {
     #[wasm_bindgen(js_namespace = console)]
@@ -19,11 +22,11 @@ pub fn run_code(code: &str) {
 
 pub fn run(code: String) -> Result<(), String> {
     let mut lexer = Lexer::new(String::from(code));
-    lexer.print(); //打印token
+    // lexer.print(); //打印token
     let mut parser = Parser::new(Box::new(lexer));
 
     let mut program = parser.parse_program()?;
-    program.print_tree(); //打印树
+    // program.print_tree(); //打印树
 
     //绑定全局变量
     program.bind_value(String::from("a"), JSType::Int(12));
