@@ -4,8 +4,12 @@ use std::time::Instant;
 fn main() -> Result<(), String> {
     _ = run(r#"
     for(let i=0;i<10;i++){
-        log(i)
+        log(i);
+        if (i==4){
+            break;
+        }
     }
+    log(i);
 "#
     .into());
     Ok(())
@@ -27,7 +31,7 @@ fn run(code: String) -> Result<(), String> {
         String::from("log"),
         Box::new(|args| {
             println!("\x1b[33m log => {:?}\x1b[39m", args);
-            return Ok(JSType::Void);
+            return Ok(JSType::NULL);
         }),
     );
     program.register_method(

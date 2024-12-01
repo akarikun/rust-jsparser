@@ -160,10 +160,10 @@ impl Program {
     fn parse_body_slot(&mut self, _expr: &Expr, mut index: usize) -> Result<JSType, String> {
         match _expr {
             Expr::Break => {
-                return Ok(JSType::Break);
+                return Ok(JSType::Flag(JSTypeFlag::Break));
             }
             Expr::Continue => {
-                return Ok(JSType::Continue);
+                return Ok(JSType::Flag(JSTypeFlag::Continue));
             }
             Expr::Return(expr) => {
                 if let Expr::Function(a, b, c) = expr.as_ref() {
@@ -173,7 +173,7 @@ impl Program {
                         c.as_ref().clone(),
                     ));
                 } else if matches!(expr.as_ref(), Expr::Empty) {
-                    return Ok(JSType::Return);
+                    return Ok(JSType::Flag(JSTypeFlag::Return));
                 } else if matches!(
                     expr.as_ref(),
                     Expr::Identifier(_)
@@ -190,11 +190,14 @@ impl Program {
             }
             _ => {
                 let _expr = self.parse(index, _expr)?;
-                if matches!(_expr, JSType::Void | JSType::NULL) {
-                    return Ok(JSType::PASS);
-                }
-                if matches!(_expr,JSType::Return){
-                    return Ok(_expr);
+                match _expr {
+                    JSType::Flag(jstype_flag) => {
+                        return Ok(JSType::Flag(jstype_flag));
+                    }
+                    JSType::NULL =>{
+                        return Ok(_expr);
+                    }
+                    _ => {}
                 }
                 return Err(self.err(&format!("{:?}", _expr)));
             }
@@ -213,7 +216,7 @@ impl Program {
             self.update_index(&mut index, false);
             return result;
         }
-        Ok(JSType::Void)
+        Ok(JSType::Undefined)
     }
 
     /// for/while/do-while
@@ -226,39 +229,44 @@ impl Program {
         update: Option<&Box<Expr>>, //i++;
         body: &Box<Expr>,
     ) -> Result<JSType, String> {
-        let mut action = |p: &mut Self, is_break: &mut bool,is_return:&mut bool| -> Result<_, String> {
-            match body.as_ref() {
-                Expr::BlockStatement(vec) => {
-                    for i in vec.iter().enumerate() {
-                        let result = p.parse(index, i.1)?;
-                        if matches!(result, JSType::Break) {
-                            *is_break = true;
-                            break;
-                        } else if matches!(result, JSType::Continue) {
-                            break;
+        let mut action =
+            |p: &mut Self, is_break: &mut bool, is_return: &mut bool| -> Result<_, String> {
+                match body.as_ref() {
+                    Expr::BlockStatement(vec) => {
+                        for i in vec.iter().enumerate() {
+                            let result = p.parse(index, i.1)?;
+                            match result {
+                                JSType::Flag(jstype_flag) => {
+                                    if matches!(jstype_flag, JSTypeFlag::Break) {
+                                        *is_break = true;
+                                        break;
+                                    } else if matches!(jstype_flag, JSTypeFlag::Continue) {
+                                        break;
+                                    } else if matches!(jstype_flag, JSTypeFlag::Return) {
+                                        *is_return = true;
+                                        return Ok(JSTypeFlag::Return);
+                                    }
+                                }
+                                _ => {}
+                            }
                         }
-                        else if  matches!(result, JSType::Return) {
-                            *is_return = true;
-                            return Ok(JSType::Return);
+                        if let Some(update) = update {
+                            p.parse(index, update)?;
                         }
                     }
-                    if let Some(update) = update {
-                        p.parse(index, update)?;
+                    Expr::Call(_, _) => {
+                        p.parse(index, body)?;
+                        if let Some(update) = update {
+                            p.parse(index, update)?;
+                        }
+                    }
+                    _ => {
+                        dbg!(&body);
+                        return Err(p.err("功能暂未实现"));
                     }
                 }
-                Expr::Call(_, _) => {
-                    p.parse(index, body)?;
-                    if let Some(update) = update {
-                        p.parse(index, update)?;
-                    }
-                }
-                _ => {
-                    dbg!(&body);
-                    return Err(p.err("功能暂未实现"));
-                }
-            }
-            Ok(JSType::NULL)
-        };
+                Ok(JSTypeFlag::None)
+            };
 
         if let Some(init) = init {
             _ = self.parse(index, init.as_ref())?;
@@ -271,10 +279,10 @@ impl Program {
                 break;
             }
             if is_return {
-                return Ok(JSType::Return);
+                return Ok(JSType::Flag(JSTypeFlag::Return));
             }
             if matches!(test.as_ref(), Expr::Empty) {
-                _ = action(self, &mut is_break,&mut is_return);
+                _ = action(self, &mut is_break, &mut is_return);
             } else {
                 let test = self.parse(index, test.as_ref())?;
                 if let JSType::Bool(mut flag) = test {
@@ -284,7 +292,7 @@ impl Program {
                         flag = true;
                     }
                     if flag {
-                        _ = action(self, &mut is_break,&mut is_return);
+                        _ = action(self, &mut is_break, &mut is_return);
                     } else {
                         break;
                     }
@@ -458,10 +466,11 @@ impl Program {
             }
             Expr::For(init, test, update, body) => {
                 self.update_index(&mut index, true);
-                let result = self.parse_while_and_for(index, false, Some(init), test, Some(update), body)?;
+                let result =
+                    self.parse_while_and_for(index, false, Some(init), test, Some(update), body)?;
                 self.update_index(&mut index, false);
-                if matches!(result,JSType::Return){
-                    return Ok(JSType::Return);
+                if matches!(result, JSType::Flag(JSTypeFlag::Return)) {
+                    return Ok(JSType::Flag(JSTypeFlag::Return));
                 }
             }
             Expr::ForIn(_, _) => {}
@@ -499,10 +508,15 @@ impl Program {
                     for i in t {
                         let result = self.parse_body_slot(i, index)?;
                         match result {
-                            JSType::Break | JSType::Return => return Ok(result),
-                            JSType::PASS => {}
-                            _ => return Ok(result), //return Err(self.err(&format!("暂未处理,{:?}", result))),
-                        };
+                            JSType::Flag(jstype_flag) => {
+                                match jstype_flag {
+                                    //提前跳出循环
+                                    JSTypeFlag::Break | JSTypeFlag::Return => return Ok(JSType::Flag(jstype_flag)),
+                                    _=> panic!("暂未处理")
+                                }
+                            },
+                            _=>panic!("暂未处理")
+                        }
                     }
                 }
             }
@@ -512,7 +526,7 @@ impl Program {
             Expr::DoWhile(test, body) => {
                 _ = self.parse_while_and_for(index, true, None, test, None, body);
             }
-            Expr::Object(map)=>{
+            Expr::Object(map) => {
                 // for n in map{
                 //     println!("{}={}",n.0,n.1.to_raw());
                 // }
@@ -529,17 +543,23 @@ impl Program {
 
 #[derive(Debug, Clone)]
 pub enum JSType {
-    PASS, // 执行语句块时  没有return语句的flag
-    Void, // 无返回值
-    Continue,
-    Break,
-    Return, //这里可能需要优化/return/void/function
+    Flag(JSTypeFlag),// 程序控制的状态
+
     NULL,
+    Undefined,
     Int(i64),
     Float(f64),
     String(String),
     Bool(bool),
     Function(Expr, Vec<Expr>, Expr),
+    Object(Vec<HashMap<String,JSType>>),//json or member
+}
+#[derive(Debug, Clone)]
+pub enum JSTypeFlag {
+    None,
+    Continue,
+    Break,
+    Return,
 }
 
 impl JSType {
@@ -550,12 +570,10 @@ impl JSType {
             JSType::Float(t) => Ok(t.to_string()),
             JSType::String(t) => Ok(t.to_string()),
             JSType::Bool(t) => Ok(t.to_string()),
-            JSType::Void => Ok("".to_string()),
             JSType::Function(t, _, _) => Ok(err(&format!("function:{}", t.to_raw()))),
-            JSType::Continue => Ok(err("continue")),
-            JSType::Break => Ok(err("break")),
-            JSType::PASS => Ok(err("<PASS>")),
-            JSType::Return => Ok(err("return")),
+            JSType::Flag(jstype_flag) => todo!(),
+            JSType::Undefined => Ok("".to_string()),
+            _ => Ok("".to_string()),
         }
     }
     pub fn add(&self, other: &JSType) -> Result<JSType, String> {

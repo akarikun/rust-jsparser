@@ -3,9 +3,6 @@ use jsparser::{lexer::Lexer, parser::Parser, program::JSType};
 extern crate wasm_bindgen;
 use wasm_bindgen::prelude::*;
 
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 #[wasm_bindgen]
 extern {
     #[wasm_bindgen(js_namespace = console)]
@@ -36,7 +33,7 @@ pub fn run(code: String) -> Result<(), String> {
         Box::new(|args| {
             //println!("\x1b[33m log => {:?}\x1b[39m", args);
             log(&format!("\x1b[33m log => {:?}\x1b[39m", args));
-            return Ok(JSType::Void);
+            return Ok(JSType::NULL);
         }),
     );
     program.register_method(
