@@ -1,7 +1,6 @@
 use super::err;
 use super::expr::{Expr, Operator, Variable};
 use std::collections::HashMap;
-use std::result;
 
 pub struct Program {
     statements: Vec<Expr>,
@@ -134,6 +133,15 @@ impl Program {
         self.local_value.push(list);
     }
 
+    pub fn execute_func(&mut self, func: JSType,result:Vec<JSType>){
+        if let JSType::Function(a, b, c) = func{
+            if result.len() > 0 {
+                self.bind_local_args(Variable::Var, &b, result);
+            }
+            let result = self.parse(0, &c).unwrap();
+        }
+    }
+
     /// index层级变化时调用
     fn update_index(&mut self, index: &mut usize, is_inc: bool) {
         if is_inc {
@@ -189,12 +197,13 @@ impl Program {
                 }
             }
             _ => {
+                dbg!(&_expr);
                 let _expr = self.parse(index, _expr)?;
                 match _expr {
                     JSType::Flag(jstype_flag) => {
                         return Ok(JSType::Flag(jstype_flag));
                     }
-                    JSType::NULL =>{
+                    JSType::NULL => {
                         return Ok(_expr);
                     }
                     _ => {}
@@ -416,6 +425,7 @@ impl Program {
                     Expr::Identifier(t) => {
                         let mut list = Vec::new();
                         for i in args {
+                            // dbg!(&i);
                             list.push(self.parse(index, i)?);
                         }
                         if let Some(e) = self.fn_map.get(&t.clone()) {
@@ -506,16 +516,19 @@ impl Program {
             Expr::BlockStatement(t) => {
                 if t.len() > 0 {
                     for i in t {
+                        dbg!(&i);
                         let result = self.parse_body_slot(i, index)?;
                         match result {
                             JSType::Flag(jstype_flag) => {
                                 match jstype_flag {
                                     //提前跳出循环
-                                    JSTypeFlag::Break | JSTypeFlag::Return => return Ok(JSType::Flag(jstype_flag)),
-                                    _=> panic!("暂未处理")
+                                    JSTypeFlag::Break | JSTypeFlag::Return => {
+                                        return Ok(JSType::Flag(jstype_flag))
+                                    }
+                                    _ => panic!("暂未处理"),
                                 }
-                            },
-                            _=>panic!("暂未处理")
+                            }
+                            _ => panic!("暂未处理"),
                         }
                     }
                 }
@@ -527,11 +540,27 @@ impl Program {
                 _ = self.parse_while_and_for(index, true, None, test, None, body);
             }
             Expr::Object(map) => {
-                // for n in map{
-                //     println!("{}={}",n.0,n.1.to_raw());
-                // }
+                let mut data = HashMap::new();
+                for n in map {
+                    let key = n.0.clone();
+                    let mut val = JSType::NULL;
+                    match n.1 {
+                        // 先不处理json/member中的方法
+                        Expr::Function(a, b, c) => {
+                            val = JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone());
+                        }
+                        _ => {
+                            val = self.parse(index, &n.1)?.clone();
+                        }
+                    }
+                    data.insert(key, val);
+                }
+                return Ok(JSType::Object(data));
             }
             Expr::Empty => {}
+            Expr::Function(a, b, c)=>{
+                return Ok(JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone()));
+            }
             _ => {
                 dbg!(&e);
                 return Err(self.err(&format!("功能暂未完成,{:?}", e)));
@@ -543,7 +572,7 @@ impl Program {
 
 #[derive(Debug, Clone)]
 pub enum JSType {
-    Flag(JSTypeFlag),// 程序控制的状态
+    Flag(JSTypeFlag), // 程序控制的状态
 
     NULL,
     Undefined,
@@ -552,7 +581,7 @@ pub enum JSType {
     String(String),
     Bool(bool),
     Function(Expr, Vec<Expr>, Expr),
-    Object(Vec<HashMap<String,JSType>>),//json or member
+    Object(HashMap<String, JSType>), //json or member
 }
 #[derive(Debug, Clone)]
 pub enum JSTypeFlag {

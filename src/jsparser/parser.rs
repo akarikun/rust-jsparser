@@ -339,6 +339,7 @@ impl Parser {
                     };
 
                     let mut v = Vec::new();
+                    self.allow_fn_name_empty = true;
                     loop {
                         let expr = self.parse(is_skip_semicolon)?;
                         if let Expr::Assignment2(ass) = expr {
@@ -352,6 +353,7 @@ impl Parser {
                             break;
                         }
                     }
+                    self.allow_fn_name_empty = false;
                     skip_semicolon(self);
                     return Ok(Expr::Variable2(v));
                 } else if matches!(t, TokenKeyword::If) {
