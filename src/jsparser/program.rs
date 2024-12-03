@@ -1,12 +1,13 @@
-use super::err;
+use super::utility::err;
 use super::expr::{Expr, Operator, Variable};
 use std::collections::HashMap;
 
 pub struct Program {
     statements: Vec<Expr>,
-    global_fn_map: HashMap<String, Box<dyn Fn(Vec<JSType>) -> Result<JSType, String>>>, //外部注册的全局方法
-    fn_map: HashMap<String, Expr>,                                                      //方法
-    global_value_map: HashMap<String, JSType>, //外部注册的全局变量
+    global_fn_map:
+        HashMap<String, Box<dyn Fn(Vec<JSType>) -> Result<JSType, String> + Send + 'static>>, //外部注册的全局方法
+    fn_map: HashMap<String, Expr>,                         //方法
+    global_value_map: HashMap<String, JSType>,             //外部注册的全局变量
     local_value: Vec<HashMap<String, (Variable, JSType)>>, //HashMap<usize, HashMap<String, (Variable, JSType)>>, //变量
     call_value: Vec<Vec<JSType>>,                          //函数变量
 }
@@ -73,10 +74,11 @@ impl Program {
     pub fn register_method(
         &mut self,
         ident: String,
-        callback: Box<dyn Fn(Vec<JSType>) -> Result<JSType, String>>,
+        callback: Box<dyn Fn(Vec<JSType>) -> Result<JSType, String> + Send + 'static>,
     ) {
         self.global_fn_map.insert(ident, callback);
     }
+
     pub fn bind_value(&mut self, ident: String, value: JSType) {
         self.global_value_map.insert(ident, value);
     }
@@ -133,13 +135,19 @@ impl Program {
         self.local_value.push(list);
     }
 
-    pub fn execute_func(&mut self, func: JSType,result:Vec<JSType>){
-        if let JSType::Function(a, b, c) = func{
-            if result.len() > 0 {
+    pub fn execute_func(&mut self, func: JSType, result: Vec<JSType>) -> Result<JSType, String> {
+        if let JSType::Function(a, b, c) = func {
+            let len = result.len() > 0;
+            if len {
                 self.bind_local_args(Variable::Var, &b, result);
             }
             let result = self.parse(0, &c).unwrap();
+            if len {
+                self.local_value.pop();
+            }
+            return Ok(result);
         }
+        Err(self.err(&format!("{func:?} is not function")))
     }
 
     /// index层级变化时调用
@@ -197,7 +205,7 @@ impl Program {
                 }
             }
             _ => {
-                dbg!(&_expr);
+                // dbg!(&_expr);
                 let _expr = self.parse(index, _expr)?;
                 match _expr {
                     JSType::Flag(jstype_flag) => {
@@ -516,7 +524,7 @@ impl Program {
             Expr::BlockStatement(t) => {
                 if t.len() > 0 {
                     for i in t {
-                        dbg!(&i);
+                        // dbg!(&i);
                         let result = self.parse_body_slot(i, index)?;
                         match result {
                             JSType::Flag(jstype_flag) => {
@@ -525,10 +533,11 @@ impl Program {
                                     JSTypeFlag::Break | JSTypeFlag::Return => {
                                         return Ok(JSType::Flag(jstype_flag))
                                     }
-                                    _ => panic!("暂未处理"),
+                                    _ => panic!("暂未处理{jstype_flag:?}"),
                                 }
                             }
-                            _ => panic!("暂未处理"),
+                            JSType::NULL => {}
+                            _ => panic!("暂未处理{result:?}"),
                         }
                     }
                 }
@@ -547,7 +556,8 @@ impl Program {
                     match n.1 {
                         // 先不处理json/member中的方法
                         Expr::Function(a, b, c) => {
-                            val = JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone());
+                            val =
+                                JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone());
                         }
                         _ => {
                             val = self.parse(index, &n.1)?.clone();
@@ -558,8 +568,12 @@ impl Program {
                 return Ok(JSType::Object(data));
             }
             Expr::Empty => {}
-            Expr::Function(a, b, c)=>{
-                return Ok(JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone()));
+            Expr::Function(a, b, c) => {
+                return Ok(JSType::Function(
+                    a.as_ref().clone(),
+                    b.clone(),
+                    c.as_ref().clone(),
+                ));
             }
             _ => {
                 dbg!(&e);

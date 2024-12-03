@@ -3,7 +3,7 @@
 ast树参考 [parse.html](https://esprima.org/demo/parse.html)
 
 ```
-# lib.rs 生成 webassembly 
+# lib.rs 生成 webassembly (注意生成wasm时,有的库会不支持,如要生成请移除不支持的库)
 
 # 安装所需工具
 rustup target add wasm32-unknown-unknown
