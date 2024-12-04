@@ -95,7 +95,7 @@ impl Program {
         let mut get_val = || -> Result<bool, String> {
             while self.block_index + 1 > 0 {
                 if let Some((v, val)) = self.local_value[self.block_index].get_mut(&arg) {
-                    if typ == None {
+                    if typ.is_none() {
                         *val = value.clone();
                     } else if !(matches!(v, Variable::Var) && typ.clone().unwrap() == Variable::Var)
                     {
@@ -323,6 +323,31 @@ impl Program {
         }
         Ok(JSType::NULL)
     }
+
+    fn get_value(&self, key: &str) -> Result<JSType, String> {
+        let last_index = self.block_index.clone();
+        let mut index = (self.local_value.len() as i32) - 1;
+        loop {
+            if let Some(val) = self.local_value.get(index as usize).clone() {
+                if let Some(v) = val.get(key) {
+                    return Ok(v.1.clone());
+                }
+            }
+            if index <= 0 {
+                break;
+            }
+            index -= 1;
+        }
+        if let Some(val) = self.global_value_map.get(key) {
+            return Ok(val.clone());
+        }
+        if cfg!(debug_assertions) {
+            dbg!(&last_index);
+            dbg!(&self.local_value);
+        }
+        return Err(self.err(&format!("Uncaught ReferenceError: {} is not defined", key)));
+    }
+
     ///语法解析及执行，使用递归处理所有语句
     fn parse(&mut self, e: &Expr) -> Result<JSType, String> {
         match e {
@@ -407,28 +432,29 @@ impl Program {
                 }
                 return Ok(JSType::String(val.clone()));
             }
-            Expr::Identifier(t) => {
-                let last_index = self.block_index.clone();
-                let mut index = (self.local_value.len() as i32) -1;
-                loop {
-                    if let Some(val) = self.local_value.get(index as usize).clone() {
-                        if let Some(v) = val.get(t) {
-                            return Ok(v.1.clone());
-                        }
-                    }
-                    if index <= 0 {
-                        break;
-                    }
-                    index -= 1;
-                }
-                if let Some(val) = self.global_value_map.get(t) {
-                    return Ok(val.clone());
-                }
-                if cfg!(debug_assertions) {
-                    dbg!(&last_index);
-                    dbg!(&self.local_value);
-                }
-                return Err(self.err(&format!("Uncaught ReferenceError: {} is not defined", t)));
+            Expr::Identifier(key) => {
+                // let last_index = self.block_index.clone();
+                // let mut index = (self.local_value.len() as i32) - 1;
+                // loop {
+                //     if let Some(val) = self.local_value.get(index as usize).clone() {
+                //         if let Some(v) = val.get(t) {
+                //             return Ok(v.1.clone());
+                //         }
+                //     }
+                //     if index <= 0 {
+                //         break;
+                //     }
+                //     index -= 1;
+                // }
+                // if let Some(val) = self.global_value_map.get(t) {
+                //     return Ok(val.clone());
+                // }
+                // if cfg!(debug_assertions) {
+                //     dbg!(&last_index);
+                //     dbg!(&self.local_value);
+                // }
+                // return Err(self.err(&format!("Uncaught ReferenceError: {} is not defined", t)));
+                return self.get_value(key);
             }
             Expr::Call(ee, args) => {
                 match ee.as_ref() {
@@ -558,6 +584,9 @@ impl Program {
                             val =
                                 JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone());
                         }
+                        Expr::Ref(a) => {
+                            val = self.get_value(a)?;
+                        }
                         _ => {
                             val = self.parse(&n.1)?.clone();
                         }
@@ -565,6 +594,28 @@ impl Program {
                     data.insert(key, val);
                 }
                 return Ok(JSType::Object(data));
+            }
+            Expr::Array(arr) => {
+                let mut data = Vec::new();
+                for n in arr {
+                    match n {
+                        // 先不处理json/member中的方法
+                        Expr::Function(a, b, c) => {
+                            let val =
+                                JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone());
+                            data.push(val);
+                        }
+                        Expr::Ref(a) => {
+                            let val = self.get_value(&a)?;
+                            data.push(val);
+                        }
+                        _ => {
+                            let val = self.parse(n)?.clone();
+                            data.push(val);
+                        }
+                    }
+                }
+                return Ok(JSType::Array(data));
             }
             Expr::Empty => {}
             Expr::Function(a, b, c) => {
@@ -595,6 +646,7 @@ pub enum JSType {
     Bool(bool),
     Function(Expr, Vec<Expr>, Expr),
     Object(HashMap<String, JSType>), //json or member
+    Array(Vec<JSType>),              //array
 }
 #[derive(Debug, Clone)]
 pub enum JSTypeFlag {
@@ -602,6 +654,7 @@ pub enum JSTypeFlag {
     Continue,
     Break,
     Return,
+    Ref,
 }
 
 impl JSType {

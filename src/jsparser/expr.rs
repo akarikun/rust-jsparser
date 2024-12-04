@@ -34,7 +34,9 @@ pub enum Expr {
     While(Box<Expr>, Box<Expr>),
     DoWhile(Box<Expr>, Box<Expr>), //存放顺序与while一致
 
-    Object(HashMap<String,Expr>), //json
+    Object(HashMap<String, Expr>), //json
+    Ref(String),                   //let a=1; let b ={a};//b.a=a=1;
+    Array(Vec<Expr>),              //array
 }
 
 impl Expr {
@@ -66,7 +68,7 @@ impl Expr {
             // Expr::Break => todo!(),
             // Expr::Continue => todo!(),
             // Expr::Function(expr, vec, expr1) => todo!(),
-            _ => format!("<{:?}>",self),
+            _ => format!("<{:?}>", self),
         }
     }
 }
@@ -119,7 +121,7 @@ pub enum Operator {
     BitAnd,
     INC,
     DEC,
-    
+
     ADD,
     SUB,
     MUL,

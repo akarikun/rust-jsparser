@@ -19,7 +19,7 @@ fn main() -> Result<(), String> {
             });
         }
 "#
-        .into(),
+        .to_owned(),
     );
 
     let mut input = String::new();
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn test_log() {
-        _ = run_console("log(1);".into());
+        _ = run_console("log(1);".to_owned());
     }
 
     #[test]
@@ -48,7 +48,7 @@ mod tests {
     }
     //log(i);                      //Uncaught ReferenceError: i is not defined
 "#
-            .to_string(),
+            .to_owned(),
         );
     }
     #[test]
@@ -67,7 +67,7 @@ mod tests {
             }
             foo();
         "#
-            .to_string(),
+            .to_owned(),
         );
     }
     #[test]
@@ -78,7 +78,7 @@ mod tests {
                 log(i);
             }
         "#
-            .to_string(),
+            .to_owned(),
         );
 
         let _ = run_console(
@@ -94,7 +94,7 @@ mod tests {
                     i++;
                 }
             "#
-            .to_string(),
+            .to_owned(),
         );
 
         let _ = run_console(
@@ -113,11 +113,18 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let _ = run_console(
-            r#"
-            let json = {[1+1]:2} //[a+1]:5 暂未实现
-        "#
-            .to_string(),
-        );
+        _ = run_console(r#" 
+        let b = 2;
+        let json = {'a':1,b,c:3};// {[a+1]:5} 暂未实现该表达式
+        log(json);
+        "#.to_owned());
+    }
+    #[test]
+    fn test_array() {
+        _ = run_console(r#"
+        let a = 123; 
+        let arr = [1,2,3,a];
+        log(arr);
+        "#.to_owned());
     }
 }

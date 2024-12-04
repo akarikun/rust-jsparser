@@ -270,7 +270,15 @@ impl Parser {
             TokenType::Punctuator(t) => {
                 let cur = self.current_token.clone();
                 if matches!(t, TokenPunctuator::LCParen) {
-                    let expr = self.parse_json()?;
+                    //json
+                    let expr = self.parse_json_slot()?;
+                    skip_semicolon(self);
+                    return Ok(expr);
+                }
+                if matches!(t, TokenPunctuator::LSParen) {
+                    //array
+                    let expr = self.parse_array_slot()?;
+                    skip_semicolon(self);
                     return Ok(expr);
                 }
                 if matches!(t, TokenPunctuator::Semicolon) {
@@ -484,51 +492,73 @@ impl Parser {
         token
     }
 
-    fn parse_json(&mut self) -> Result<Expr, String> {
-        self.next_token(); //{
-        let mut map = HashMap::new();
+    fn parse_array_slot(&mut self) -> Result<Expr, String> {
+        self.next_token(); //[
+        let mut v = Vec::new();
+        if self.current_token.is_ptor(TokenPunctuator::RSParen) {
+            self.next_token();
+            return Ok(Expr::Array(v));
+        }
         loop {
-            if self.current_token.is_ptor(TokenPunctuator::Comma){
-                if map.len() == 0 {
-                    return Err(self.err("Unexpected token"));
-                }
-                self.next_token();
-            }
-            if self.current_token.is_ptor(TokenPunctuator::RCParen) {
-                self.next_token(); //}
-                break;
-            }
-            if self.current_token.is_eof(false) {
-                if map.len() == 0 {
-                    return Err(self.err("Unexpected end of input"));
-                } 
-                break;
-            }
-            let expr = self.parse(false)?;
-            //还要再判断下expr类型,可以是'a',a,[a]表达式
-            // dbg!(&expr);
-            let key = expr.to_raw();
-            // dbg!(&key);
-            if self.current_token.is_ptor(TokenPunctuator::Colon){
-                self.next_token();//:
-            }
-            else if self.current_token.is_ptor(TokenPunctuator::RCParen) {
-                self.next_token(); //}
-                map.insert(key, Expr::Empty);
-                break;
-            } 
-            else if self.current_token.is_ptor(TokenPunctuator::Comma) {
-                self.next_token();//,
-            }
             self.allow_fn_name_empty = true;
             let expr = self.parse(false)?;
             self.allow_fn_name_empty = false;
-            map.insert(key, expr);
+            v.push(expr);
+            if self.current_token.is_ptor(TokenPunctuator::Comma) {
+                self.next_token();
+                continue;
+            }
+            if self.current_token.is_ptor(TokenPunctuator::RSParen) {
+                self.next_token();
+                break;
+            } else {
+                return Err(self.err("Unexpected token"));
+            }
         }
-        // dbg!(&map);
-        Ok(Expr::Object(map))
+        dbg!(&v);
+        Ok(Expr::Array(v))
     }
-    fn parse_body(&mut self, allow_single: bool) -> Result<Expr, String> {
+    /// 暂不支持 {[1+1]:2}这种表达式
+    fn parse_json_slot(&mut self) -> Result<Expr, String> {
+        self.next_token(); //{
+        let mut v = HashMap::new();
+        if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+            self.next_token();
+            return Ok(Expr::Object(v));
+        }
+        loop {
+            let key = self.parse(false)?.to_raw();
+            if self.current_token.is_ptor(TokenPunctuator::Colon) {
+                //:
+                self.next_token();
+                self.allow_fn_name_empty = true;
+                let value = self.parse(false)?;
+                self.allow_fn_name_empty = false;
+                v.insert(key.clone(), value);
+                if self.current_token.is_ptor(TokenPunctuator::Comma){
+                    self.next_token();
+                    continue;
+                }
+            } else if self.current_token.is_ptor(TokenPunctuator::Comma) {
+                //,
+                self.next_token();
+                v.insert(key.clone(), Expr::Ref(key.clone()));
+                continue;
+            }
+            if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                self.next_token();
+                if v.get(&key.clone()).is_none() {
+                    v.insert(key.clone(), Expr::Ref(key.clone()));
+                }
+                break;
+            } else {
+                return Err(self.err("Unexpected token"));
+            }
+        }
+        dbg!(&v);
+        Ok(Expr::Object(v))
+    }
+    fn parse_body_slot(&mut self, allow_single: bool) -> Result<Expr, String> {
         if !allow_single && !self.current_token.is_ptor(TokenPunctuator::LCParen) {
             return Err(self.err("Unexpected token"));
         }
@@ -595,7 +625,7 @@ impl Parser {
         let line = self.current_token.line;
         self.allow_break = true;
         self.allow_continue = true;
-        let body = self.parse_body(true)?;
+        let body = self.parse_body_slot(true)?;
         self.allow_break = false;
         self.allow_continue = false;
 
@@ -646,7 +676,7 @@ impl Parser {
         let line = self.current_token.line;
         self.allow_break = true;
         self.allow_continue = true;
-        let body = self.parse_body(true)?;
+        let body = self.parse_body_slot(true)?;
         self.allow_break = false;
         self.allow_continue = false;
 
@@ -696,7 +726,7 @@ impl Parser {
         }
         self.next_token(); //)
         self.allow_return = true;
-        let body = self.parse_body(false)?;
+        let body = self.parse_body_slot(false)?;
         self.allow_return = false;
         if let Some(tk) = ident {
             Ok(Expr::Function(
@@ -746,7 +776,7 @@ impl Parser {
         let line = self.current_token.line;
         self.allow_break = true;
         self.allow_continue = true;
-        let body = self.parse_body(true)?;
+        let body = self.parse_body_slot(true)?;
         self.allow_break = false;
         self.allow_continue = false;
 
@@ -777,7 +807,7 @@ impl Parser {
         }
         self.next_token(); //)
         let line = self.current_token.line;
-        let left_expr = self.parse_body(true)?;
+        let left_expr = self.parse_body_slot(true)?;
 
         let mut flag = false;
         if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
@@ -799,7 +829,7 @@ impl Parser {
                 ));
             } else {
                 let line = self.current_token.line;
-                right_expr = self.parse_body(true)?;
+                right_expr = self.parse_body_slot(true)?;
 
                 if self.current_token.is_ptor(TokenPunctuator::Semicolon) {
                     self.next_token();
@@ -887,7 +917,7 @@ impl Parser {
     /// 这里还要处理多级 如: a()[1]  a[1]()    a[1]()[1]()...
     fn parse_call_or_member(&mut self, prefix: Option<Expr>) -> Result<Expr, String> {
         let mut id = Expr::Empty;
-        if prefix == None {
+        if prefix.is_none() {
             let token = self.next_token();
             id = Expr::Identifier(token.raw.clone())
         } else {
