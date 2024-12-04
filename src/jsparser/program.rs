@@ -1,5 +1,5 @@
-use super::utility::err;
 use super::expr::{Expr, Operator, Variable};
+use super::utility::err;
 use std::collections::HashMap;
 
 pub struct Program {
@@ -9,7 +9,8 @@ pub struct Program {
     fn_map: HashMap<String, Expr>,                         //方法
     global_value_map: HashMap<String, JSType>,             //外部注册的全局变量
     local_value: Vec<HashMap<String, (Variable, JSType)>>, //HashMap<usize, HashMap<String, (Variable, JSType)>>, //变量
-    call_value: Vec<Vec<JSType>>,                          //函数变量
+    call_value: Vec<Vec<JSType>>,                          //函数变量(暂没用到)
+    block_index: usize,                                    //block层级下标
 }
 
 impl Program {
@@ -23,6 +24,7 @@ impl Program {
             global_value_map: HashMap::new(),
             local_value,
             call_value: Vec::new(),
+            block_index: 0,
         }
     }
 
@@ -56,7 +58,7 @@ impl Program {
                     continue;
                 }
                 _ => {
-                    let result = self.parse(0, expr);
+                    let result = self.parse(expr);
                     match result {
                         Ok(res) => {
                             // self.reset_index_value(0);
@@ -85,16 +87,14 @@ impl Program {
 
     fn bind_local_arg(
         &mut self,
-        index: usize,
         typ: Option<Variable>,
         arg: String,
         value: JSType,
     ) -> Result<(), String> {
         // println!("{:?} {:?}={:?}", typ, arg, value);
-
-        let mut get_val = |mut index: usize| -> Result<bool, String> {
-            while index > 0 {
-                if let Some((v, val)) = self.local_value[index].get_mut(&arg) {
+        let mut get_val = || -> Result<bool, String> {
+            while self.block_index + 1 > 0 {
+                if let Some((v, val)) = self.local_value[self.block_index].get_mut(&arg) {
                     if typ == None {
                         *val = value.clone();
                     } else if !(matches!(v, Variable::Var) && typ.clone().unwrap() == Variable::Var)
@@ -107,18 +107,22 @@ impl Program {
                     }
                     return Ok(true);
                 }
-                index -= 1;
+                if self.block_index == 0 {
+                    break;
+                }
+                self.block_index -= 1;
             }
             Ok(false)
         };
 
-        if !get_val(index)? {
-            self.local_value[index]
+        if !get_val()? {
+            self.local_value[self.block_index]
                 .entry(arg.clone())
                 .or_insert((typ.unwrap_or(Variable::Var), value));
         }
         Ok(())
     }
+    /// 调用前先执行一次 self.update_index(true);
     fn bind_local_args(&mut self, typ: Variable, args: &Vec<Expr>, values: Vec<JSType>) {
         let mut list: HashMap<String, (Variable, JSType)> = HashMap::new();
         for (index, e) in args.iter().enumerate() {
@@ -139,28 +143,28 @@ impl Program {
         if let JSType::Function(a, b, c) = func {
             let len = result.len() > 0;
             if len {
+                self.update_index(true);
                 self.bind_local_args(Variable::Var, &b, result);
             }
-            let result = self.parse(0, &c).unwrap();
+            let result = self.parse(&c).unwrap();
             if len {
-                self.local_value.pop();
+                self.update_index(false);
             }
             return Ok(result);
         }
         Err(self.err(&format!("{func:?} is not function")))
     }
 
-    /// index层级变化时调用
-    fn update_index(&mut self, index: &mut usize, is_inc: bool) {
+    /// index层级变化时调用,最好是在相近的语句块中添加跟移除操作
+    fn update_index(&mut self, is_inc: bool) {
         if is_inc {
-            *index += 1;
+            self.block_index += 1;
             self.local_value.push(HashMap::new());
         } else {
-            // self.local_value.remove(self.local_value.len() - 1);
-            while self.local_value.len() > *index {
-                self.local_value.remove(*index);
+            if self.block_index > 0 {
+                self.block_index -= 1;
+                self.local_value.pop();
             }
-            *index -= 1;
         }
     }
 
@@ -173,7 +177,7 @@ impl Program {
         err(str)
     }
 
-    fn parse_body_slot(&mut self, _expr: &Expr, mut index: usize) -> Result<JSType, String> {
+    fn parse_body_slot(&mut self, _expr: &Expr) -> Result<JSType, String> {
         match _expr {
             Expr::Break => {
                 return Ok(JSType::Flag(JSTypeFlag::Break));
@@ -197,7 +201,7 @@ impl Program {
                         | Expr::Literal(_, _)
                         | Expr::Infix(_, _, _)
                 ) {
-                    let result = self.parse(index, &expr)?;
+                    let result = self.parse(&expr)?;
                     return Ok(result);
                 } else {
                     dbg!(&expr);
@@ -206,7 +210,7 @@ impl Program {
             }
             _ => {
                 // dbg!(&_expr);
-                let _expr = self.parse(index, _expr)?;
+                let _expr = self.parse(_expr)?;
                 match _expr {
                     JSType::Flag(jstype_flag) => {
                         return Ok(JSType::Flag(jstype_flag));
@@ -222,15 +226,14 @@ impl Program {
     }
     fn parse_call_function(
         &mut self,
-        mut index: usize,
         values: Vec<JSType>,
         fn_body: Expr,
     ) -> Result<JSType, String> {
         if let Expr::Function(ident, args, body) = fn_body {
-            self.update_index(&mut index, true);
+            self.update_index(true);
             self.bind_local_args(Variable::Var, &args, values); //绑定参数
-            let result = self.parse(index, &body);
-            self.update_index(&mut index, false);
+            let result = self.parse(&body);
+            self.update_index(false);
             return result;
         }
         Ok(JSType::Undefined)
@@ -239,7 +242,6 @@ impl Program {
     /// for/while/do-while
     fn parse_while_and_for(
         &mut self,
-        mut index: usize,
         is_do: bool,
         init: Option<&Box<Expr>>,   //let i=0;
         test: &Box<Expr>,           //i<10;
@@ -251,7 +253,7 @@ impl Program {
                 match body.as_ref() {
                     Expr::BlockStatement(vec) => {
                         for i in vec.iter().enumerate() {
-                            let result = p.parse(index, i.1)?;
+                            let result = p.parse(i.1)?;
                             match result {
                                 JSType::Flag(jstype_flag) => {
                                     if matches!(jstype_flag, JSTypeFlag::Break) {
@@ -268,13 +270,13 @@ impl Program {
                             }
                         }
                         if let Some(update) = update {
-                            p.parse(index, update)?;
+                            p.parse(update)?;
                         }
                     }
                     Expr::Call(_, _) => {
-                        p.parse(index, body)?;
+                        p.parse(body)?;
                         if let Some(update) = update {
-                            p.parse(index, update)?;
+                            p.parse(update)?;
                         }
                     }
                     _ => {
@@ -286,7 +288,7 @@ impl Program {
             };
 
         if let Some(init) = init {
-            _ = self.parse(index, init.as_ref())?;
+            _ = self.parse(init.as_ref())?;
         }
         let mut is_break = false;
         let mut is_return = false;
@@ -301,7 +303,7 @@ impl Program {
             if matches!(test.as_ref(), Expr::Empty) {
                 _ = action(self, &mut is_break, &mut is_return);
             } else {
-                let test = self.parse(index, test.as_ref())?;
+                let test = self.parse(test.as_ref())?;
                 if let JSType::Bool(mut flag) = test {
                     do_count += 1;
                     if is_do && do_count == 1 {
@@ -322,17 +324,17 @@ impl Program {
         Ok(JSType::NULL)
     }
     ///语法解析及执行，使用递归处理所有语句
-    fn parse(&mut self, mut index: usize, e: &Expr) -> Result<JSType, String> {
+    fn parse(&mut self, e: &Expr) -> Result<JSType, String> {
         match e {
             Expr::Infix(_left, op, _right) => {
-                let left = self.parse(index, _left)?;
-                let right = self.parse(index, _right)?;
+                let left = self.parse(_left)?;
+                let right = self.parse(_right)?;
                 return match &op {
                     Operator::Plus => left.add(&right),
                     Operator::ADD => {
                         let result = left.add(&right)?;
                         if let Expr::Identifier(id) = _left.as_ref() {
-                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            _ = self.bind_local_arg(None, id.clone(), result.clone());
                             return Ok(left);
                         } else {
                             return Err(self.err(&format!("暂不支持其他表达式")));
@@ -342,7 +344,7 @@ impl Program {
                     Operator::SUB => {
                         let result = left.subtract(&right)?;
                         if let Expr::Identifier(id) = _left.as_ref() {
-                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            _ = self.bind_local_arg(None, id.clone(), result.clone());
                             return Ok(left);
                         } else {
                             return Err(self.err(&format!("暂不支持其他表达式")));
@@ -352,7 +354,7 @@ impl Program {
                     Operator::MUL => {
                         let result = left.multiply(&right)?;
                         if let Expr::Identifier(id) = _left.as_ref() {
-                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            _ = self.bind_local_arg(None, id.clone(), result.clone());
                             return Ok(left);
                         } else {
                             return Err(self.err(&format!("暂不支持其他表达式")));
@@ -362,7 +364,7 @@ impl Program {
                     Operator::DIV => {
                         let result = left.divide(&right)?;
                         if let Expr::Identifier(id) = _left.as_ref() {
-                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            _ = self.bind_local_arg(None, id.clone(), result.clone());
                             return Ok(left);
                         } else {
                             return Err(self.err(&format!("暂不支持其他表达式")));
@@ -372,7 +374,7 @@ impl Program {
                     Operator::MOD => {
                         let result = left.modulo(&right)?;
                         if let Expr::Identifier(id) = _left.as_ref() {
-                            _ = self.bind_local_arg(index, None, id.clone(), result.clone());
+                            _ = self.bind_local_arg(None, id.clone(), result.clone());
                             return Ok(left);
                         } else {
                             return Err(self.err(&format!("暂不支持其他表达式")));
@@ -406,18 +408,18 @@ impl Program {
                 return Ok(JSType::String(val.clone()));
             }
             Expr::Identifier(t) => {
-                let last_index = index.clone();
-                let mut index = (self.local_value.len() - 1) as i32; //index.clone() as i32;
+                let last_index = self.block_index.clone();
+                let mut index = (self.local_value.len() as i32) -1;
                 loop {
                     if let Some(val) = self.local_value.get(index as usize).clone() {
                         if let Some(v) = val.get(t) {
                             return Ok(v.1.clone());
                         }
                     }
-                    index -= 1;
-                    if index <= -1 {
+                    if index <= 0 {
                         break;
                     }
+                    index -= 1;
                 }
                 if let Some(val) = self.global_value_map.get(t) {
                     return Ok(val.clone());
@@ -434,30 +436,27 @@ impl Program {
                         let mut list = Vec::new();
                         for i in args {
                             // dbg!(&i);
-                            list.push(self.parse(index, i)?);
+                            list.push(self.parse(i)?);
                         }
                         if let Some(e) = self.fn_map.get(&t.clone()) {
-                            let expr = self.parse_call_function(index, list, e.clone())?;
+                            let expr = self.parse_call_function(list, e.clone())?;
                             return Ok(expr);
                         }
-                        self.update_index(&mut index, true);
                         if let Some(e) = self.global_fn_map.get(&t.clone()) {
                             let result = e(list)?;
-                            self.update_index(&mut index, false);
                             return Ok(result);
                         }
-                        self.update_index(&mut index, false);
                         return Err(self.err(&format!("暂未实现")));
                     }
                     Expr::Call(ee2, args2) => {
-                        let expr = self.parse(index, ee)?;
+                        let expr = self.parse(ee)?;
                         let mut list = Vec::new();
                         for i in args {
-                            list.push(self.parse(index, i)?);
+                            list.push(self.parse(i)?);
                         }
                         if let JSType::Function(a, b, c) = expr {
                             let body = Expr::Function(Box::new(a), b, Box::new(c));
-                            let expr2 = self.parse_call_function(index, list, body)?;
+                            let expr2 = self.parse_call_function(list, body)?;
                             // dbg!(&expr2);
                             return Ok(expr2);
                         }
@@ -469,24 +468,24 @@ impl Program {
                 };
             }
             Expr::Assignment(ident, value) => {
-                let result = self.parse(index, value.as_ref())?;
-                self.bind_local_arg(index, Some(Variable::Var), ident.clone(), result);
+                let result = self.parse(value.as_ref())?;
+                self.bind_local_arg(Some(Variable::Var), ident.clone(), result);
             }
             Expr::Variable2(v) => {
                 for i in v {
-                    let result = self.parse(index, &i.2.clone())?;
-                    self.bind_local_arg(index, Some(i.0.clone()), i.1.clone(), result);
+                    let result = self.parse(&i.2.clone())?;
+                    self.bind_local_arg(Some(i.0.clone()), i.1.clone(), result);
                 }
             }
             Expr::Variable(variable, ident, value) => {
-                let result = self.parse(index, value.as_ref())?;
-                self.bind_local_arg(index, Some(variable.clone()), ident.clone(), result);
+                let result = self.parse(value.as_ref())?;
+                self.bind_local_arg(Some(variable.clone()), ident.clone(), result);
             }
             Expr::For(init, test, update, body) => {
-                self.update_index(&mut index, true);
+                self.update_index(true);
                 let result =
-                    self.parse_while_and_for(index, false, Some(init), test, Some(update), body)?;
-                self.update_index(&mut index, false);
+                    self.parse_while_and_for(false, Some(init), test, Some(update), body)?;
+                self.update_index(false);
                 if matches!(result, JSType::Flag(JSTypeFlag::Return)) {
                     return Ok(JSType::Flag(JSTypeFlag::Return));
                 }
@@ -494,24 +493,24 @@ impl Program {
             Expr::ForIn(_, _) => {}
             Expr::ForOf(_, _) => {}
             Expr::Update(ident, op, _) => {
-                let val = self.parse(index, &ident)?.INC()?;
+                let val = self.parse(&ident)?.INC()?;
                 if let Expr::Identifier(id) = ident.as_ref() {
-                    _ = self.bind_local_arg(index, None, id.clone(), val.clone());
+                    _ = self.bind_local_arg(None, id.clone(), val.clone());
                     return Ok(val);
                 } else {
                     return Err(self.err(&format!("暂不支持其他表达式")));
                 }
             }
             Expr::If(e, left, right) => {
-                let result = self.parse(index, e)?;
+                let result = self.parse(e)?;
                 if let JSType::Bool(r) = result {
                     if r {
                         let left = left.as_ref();
-                        let result = self.parse_body_slot(left, index)?;
+                        let result = self.parse_body_slot(left)?;
                         return Ok(result);
                     } else {
                         let right = right.as_ref();
-                        let result = self.parse_body_slot(right, index)?;
+                        let result = self.parse_body_slot(right)?;
                         return Ok(result);
                     }
                 } else {
@@ -519,13 +518,13 @@ impl Program {
                 }
             }
             Expr::Expression(expr) => {
-                return self.parse(index, expr);
+                return self.parse(expr);
             }
             Expr::BlockStatement(t) => {
                 if t.len() > 0 {
                     for i in t {
                         // dbg!(&i);
-                        let result = self.parse_body_slot(i, index)?;
+                        let result = self.parse_body_slot(i)?;
                         match result {
                             JSType::Flag(jstype_flag) => {
                                 match jstype_flag {
@@ -543,10 +542,10 @@ impl Program {
                 }
             }
             Expr::While(test, body) => {
-                _ = self.parse_while_and_for(index, false, None, test, None, body);
+                _ = self.parse_while_and_for(false, None, test, None, body);
             }
             Expr::DoWhile(test, body) => {
-                _ = self.parse_while_and_for(index, true, None, test, None, body);
+                _ = self.parse_while_and_for(true, None, test, None, body);
             }
             Expr::Object(map) => {
                 let mut data = HashMap::new();
@@ -560,7 +559,7 @@ impl Program {
                                 JSType::Function(a.as_ref().clone(), b.clone(), c.as_ref().clone());
                         }
                         _ => {
-                            val = self.parse(index, &n.1)?.clone();
+                            val = self.parse(&n.1)?.clone();
                         }
                     }
                     data.insert(key, val);

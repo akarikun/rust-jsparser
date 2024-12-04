@@ -3,8 +3,8 @@ use jsparser::utility::run_console;
 
 fn main() -> Result<(), String> {
     _ = run_console(
-        r#"
-        for(let i=0;i<10;i++){
+        r#"       
+        for(let i=0;i<5;i++){
             if(i>=3){
                 break;
             }
@@ -13,6 +13,7 @@ fn main() -> Result<(), String> {
                 url:'https://ipinfo.io',
                 type:'get',
                 success:function(e){
+                    // log("第"+i+"次调用ajax");// log => [String("第4次调用ajax")]
                     log(e);
                 }
             });
