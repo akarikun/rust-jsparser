@@ -625,7 +625,7 @@ impl JSType {
             (JSType::Float(a), JSType::Float(b)) => Ok(JSType::Float(a + b)),
             (JSType::Int(a), JSType::Float(b)) => Ok(JSType::Float(*a as f64 + b)),
             (JSType::Float(a), JSType::Int(b)) => Ok(JSType::Float(a + *b as f64)),
-            (JSType::String(a), JSType::String(b)) => Ok(JSType::String(format!("{},{}", a, b))),
+            (JSType::String(a), JSType::String(b)) => Ok(JSType::String(format!("{}{}", a, b))),
             (JSType::NULL, JSType::String(b)) => Ok(JSType::String(format!("null{}", b))),
             (JSType::Int(a), JSType::String(b)) => Ok(JSType::String(format!("{}{}", a, b))),
             (JSType::Float(a), JSType::String(b)) => Ok(JSType::String(format!("{}{}", a, b))),

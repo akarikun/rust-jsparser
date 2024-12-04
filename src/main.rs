@@ -4,13 +4,19 @@ use jsparser::utility::run_console;
 fn main() -> Result<(), String> {
     _ = run_console(
         r#"
-    ajax({
-        url:'https://ipinfo.io',
-        type:'get',
-        success:function(e){
-            log(e);
+        for(let i=0;i<10;i++){
+            if(i>=3){
+                break;
+            }
+            log("第"+(i+1)+"次调用ajax");
+            ajax({
+                url:'https://ipinfo.io',
+                type:'get',
+                success:function(e){
+                    log(e);
+                }
+            });
         }
-    })
 "#
         .into(),
     );

@@ -104,13 +104,18 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
                             let pg = program.clone();
                             let success = success.clone();
                             let result = result.clone();
-                            //避免死锁,这里加个延迟
-                            std::thread::sleep(std::time::Duration::from_millis(200));
-                            move || {
-                                _ = pg
-                                    .try_lock()
-                                    .expect("error")
-                                    .execute_func(success.clone(), vec![JSType::String(result)]);
+
+                            //可能会死锁,这里用循环+延迟可解决
+                            move || loop {
+                                if let Ok(mut pg) = pg.try_lock() {
+                                    _ = pg.execute_func(
+                                        success.clone(),
+                                        vec![JSType::String(result)],
+                                    );
+                                    break;
+                                } else {
+                                    std::thread::sleep(std::time::Duration::from_millis(200));
+                                }
                             }
                         });
                     }

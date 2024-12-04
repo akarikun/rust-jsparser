@@ -43,3 +43,6 @@ wasm-bindgen target/wasm32-unknown-unknown/release/jsparser.wasm --out-dir ./pkg
 </body>
 </html>
 ```
+
+### 效果如下:
+![708b5212-8875-4c1f-9e0b-1376d513e346.png](https://raw.githubusercontent.com/akarikun/rust-jsparser/master/images/708b5212-8875-4c1f-9e0b-1376d513e346.png)
