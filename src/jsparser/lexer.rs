@@ -436,6 +436,20 @@ impl ILexer for Lexer {
                             self.column,
                         )
                     }
+                    "case" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Case),
+                            line,
+                            self.column,
+                        )
+                    }
+                    "default" => {
+                        return Token::new(
+                            TokenType::Keyword(TokenKeyword::Default),
+                            line,
+                            self.column,
+                        )
+                    }
                     "function" => {
                         return Token::new(
                             TokenType::Keyword(TokenKeyword::Function),

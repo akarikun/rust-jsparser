@@ -6,23 +6,20 @@ pub enum Expr {
     Unary(Unary, Box<Expr>), // !a  !~+-a
     Unexpected(String),      //异常
     Identifier(String),
-
     TemplateLiteral(Box<Expr>, Box<Expr>), //``
     Literal2(String), //保留原始raw    标记为2的表示未确定最终格式，最后需要统一规划
     Literal(String, String),
-    Assignment(String, Box<Expr>), // a=b
-    Call(Box<Expr>, Vec<Expr>),    // a()  a.b()
-
-    Member(Box<Expr>, Box<Expr>), //a.b a[b]
-    Sequence(Vec<Expr>),          // a[1,2,3,4]
-
+    Assignment(String, Box<Expr>),         // a=b
+    Call(Box<Expr>, Vec<Expr>),            // a()  a.b()
+    Member(Box<Expr>, Box<Expr>),          //a.b a[b]
+    Sequence(Vec<Expr>),                   // a[1,2,3,4]
     Infix(Box<Expr>, Operator, Box<Expr>), //算术符号 a+b  +-*/   a && b  逻辑符号 &&,||,!
     Update(Box<Expr>, String, bool),       //a++/++a     bool:存放++的前后位置
     Variable(Variable, String, Box<Expr>), //let a =
     Variable2(Vec<(Variable, String, Expr)>),
     Assignment2(Vec<(String, Expr)>),
     If(Box<Expr>, Box<Expr>, Box<Expr>), //if
-    BlockStatement(Vec<Expr>),
+    Block(Vec<Expr>),
     Expression(Box<Expr>),
     Return(Box<Expr>),
     For(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>), //for
@@ -33,7 +30,8 @@ pub enum Expr {
     Function(Box<Expr>, Vec<Expr>, Box<Expr>), //function
     While(Box<Expr>, Box<Expr>),
     DoWhile(Box<Expr>, Box<Expr>), //存放顺序与while一致
-
+    Switch(Box<Expr>, Vec<Expr>),
+    SwitchCase(Box<Expr>, Vec<Expr>),
     Object(HashMap<String, Expr>), //json
     Ref(String),                   //let a=1; let b ={a};//b.a=a=1;
     Array(Vec<Expr>),              //array
@@ -59,7 +57,7 @@ impl Expr {
             // Expr::Variable2(vec) => todo!(),
             // Expr::Assignment2(vec) => todo!(),
             // Expr::If(expr, expr1, expr2) => todo!(),
-            // Expr::BlockStatement(vec) => todo!(),
+            // Expr::Block(vec) => todo!(),
             // Expr::Expression(expr) => todo!(),
             // Expr::Return(expr) => todo!(),
             // Expr::For(expr, expr1, expr2, expr3) => todo!(),

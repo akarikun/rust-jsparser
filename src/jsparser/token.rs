@@ -209,9 +209,11 @@ pub enum TokenKeyword {
     Continue, //continue
     Delete,   //delete
     Do,       //do
-    Swith,    //switch
     Function, //function
     While,    //while
+    Swith,    //switch
+    Case,     //case
+    Default,  //default
 }
 impl std::fmt::Display for TokenKeyword {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -240,6 +242,8 @@ impl TokenKeyword {
             TokenKeyword::Continue => String::from("continue"),
             TokenKeyword::Function => String::from("function"),
             TokenKeyword::While => String::from("while"),
+            TokenKeyword::Case => String::from("case"),
+            TokenKeyword::Default => String::from("default"),
         }
     }
 }

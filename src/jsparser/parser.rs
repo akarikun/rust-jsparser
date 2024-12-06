@@ -15,6 +15,7 @@ pub struct Parser {
     allow_return: bool,        //是否允许返回return
     allow_break: bool,         //是否允许break
     allow_continue: bool,      //是否允许continue
+    gen_json:bool,             //生成json,默认为block
 }
 
 impl Parser {
@@ -27,6 +28,7 @@ impl Parser {
             allow_return: false,
             allow_break: false,
             allow_continue: false,
+            gen_json:false,
         };
         parser.next_token();
         parser.next_token();
@@ -213,6 +215,11 @@ impl Parser {
                 }
                 if self.peek_token.is_ptor(TokenPunctuator::MOV) {
                     //a=<base_Expr>
+                    let mut gen_json = false;
+                    if !self.gen_json{
+                        gen_json = true;
+                        self.gen_json = true;
+                    }
                     let ident = self.next_token();
                     self.next_token();
                     if self.current_token.is_eof(true) {
@@ -235,6 +242,9 @@ impl Parser {
                         } else if let Expr::Identifier(t) = expr {
                             v.push((t, Expr::Empty));
                         }
+                    }
+                    if gen_json {
+                        self.gen_json = false;
                     }
                     return Ok(Expr::Assignment2(v));
                 } else if self.peek_token.is_complex() {
@@ -270,10 +280,15 @@ impl Parser {
             TokenType::Punctuator(t) => {
                 let cur = self.current_token.clone();
                 if matches!(t, TokenPunctuator::LCParen) {
-                    //json
-                    let expr = self.parse_json_slot()?;
-                    skip_semicolon(self);
-                    return Ok(expr);
+                    if self.gen_json{
+                        let expr = self.parse_json_slot()?;
+                        skip_semicolon(self);
+                        return Ok(expr);
+                    }
+                    else{
+                        let body = self.parse_body_slot(false)?;
+                        return Ok(body);
+                    }                    
                 }
                 if matches!(t, TokenPunctuator::LSParen) {
                     //array
@@ -370,6 +385,10 @@ impl Parser {
                     return expr;
                 } else if matches!(t, TokenKeyword::Else) {
                     return Err(self.err("Unexpected token else"));
+                } else if matches!(t, TokenKeyword::Swith) {
+                    let expr = self.parse_switch_slot();
+                    skip_semicolon(self);
+                    return expr;
                 } else if matches!(t, TokenKeyword::For) {
                     let expr = self.parse_for_slot();
                     skip_semicolon(self);
@@ -518,7 +537,7 @@ impl Parser {
         dbg!(&v);
         Ok(Expr::Array(v))
     }
-    /// 暂不支持 {[1+1]:2}这种表达式
+    /// 暂没处理 {[1+1]:2}这种表达式
     fn parse_json_slot(&mut self) -> Result<Expr, String> {
         self.next_token(); //{
         let mut v = HashMap::new();
@@ -535,7 +554,7 @@ impl Parser {
                 let value = self.parse(false)?;
                 self.allow_fn_name_empty = false;
                 v.insert(key.clone(), value);
-                if self.current_token.is_ptor(TokenPunctuator::Comma){
+                if self.current_token.is_ptor(TokenPunctuator::Comma) {
                     self.next_token();
                     continue;
                 }
@@ -555,7 +574,6 @@ impl Parser {
                 return Err(self.err("Unexpected token"));
             }
         }
-        dbg!(&v);
         Ok(Expr::Object(v))
     }
     fn parse_body_slot(&mut self, allow_single: bool) -> Result<Expr, String> {
@@ -585,7 +603,7 @@ impl Parser {
                 return Err(self.err("Unexpected token"));
             }
             self.next_token(); //}
-            return Ok(Expr::BlockStatement(v));
+            return Ok(Expr::Block(v));
         } else {
             let expr = self.parse(false)?;
             if matches!(
@@ -738,7 +756,72 @@ impl Parser {
             Ok(Expr::Function(Box::new(Expr::Empty), args, Box::new(body)))
         }
     }
-
+    fn parse_switch_slot(&mut self) -> Result<Expr, String> {
+        self.next_token(); //switch
+        if !self.current_token.is_ptor(TokenPunctuator::LParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token(); //(
+        let test = self.parse(false)?;
+        if !self.current_token.is_ptor(TokenPunctuator::RParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token(); //(
+        if !self.current_token.is_ptor(TokenPunctuator::LCParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token(); //{
+        let mut v = Vec::new();
+        loop {
+            let cur = self.current_token.clone();
+            let is_default = cur.is_keyword(TokenKeyword::Default);
+            if cur.is_keyword(TokenKeyword::Case) || is_default {
+                self.next_token(); //case or default
+                let mut case_test = Expr::Empty;
+                if !self.current_token.is_ptor(TokenPunctuator::Colon) {
+                    case_test = self.parse(false)?;
+                } 
+                if self.current_token.is_ptor(TokenPunctuator::Colon){
+                    self.next_token(); //:
+                }
+                if self.current_token.is_keyword(TokenKeyword::Default) {
+                    v.push(Expr::SwitchCase(Box::new(case_test), Vec::new()));
+                    continue;
+                }
+                if self.current_token.is_ptor(TokenPunctuator::RCParen) {
+                    v.push(Expr::SwitchCase(Box::new(case_test), Vec::new()));
+                    break;
+                }
+                let mut allow_break = false;
+                if !self.allow_break {
+                    allow_break = true;
+                    self.allow_break = true;
+                }
+                let mut v_body = Vec::new();
+                loop {
+                    let case_body = self.parse(true)?;
+                    v_body.push(case_body);
+                    if self.current_token.is_keyword(TokenKeyword::Default)
+                        || self.current_token.is_ptor(TokenPunctuator::RCParen)
+                    {
+                        break;
+                    }
+                }
+                if allow_break {
+                    self.allow_break = false;
+                }
+                v.push(Expr::SwitchCase(Box::new(case_test), v_body));
+                if is_default {
+                    break;
+                }
+            }
+        }
+        if !self.current_token.is_ptor(TokenPunctuator::RCParen) {
+            return Err(self.err("Unexpected token"));
+        }
+        self.next_token(); //}
+        Ok(Expr::Switch(Box::new(test), v))
+    }
     fn parse_for_slot(&mut self) -> Result<Expr, String> {
         self.next_token(); //for
         if !self.current_token.is_ptor(TokenPunctuator::LParen) {
@@ -853,8 +936,16 @@ impl Parser {
         }
 
         let mut v = Vec::new();
+        let mut gen_json = self.gen_json;
+        if !gen_json {
+            gen_json = true;
+            self.gen_json = true;
+        }
         let expr = self.parse(true)?;
         v.push(expr);
+        if gen_json {
+            self.gen_json = false;
+        }
         while self.current_token.is_ptor(TokenPunctuator::Comma) {
             self.next_token();
             let expr = self.parse(true)?;

@@ -251,7 +251,7 @@ impl Program {
         let mut action =
             |p: &mut Self, is_break: &mut bool, is_return: &mut bool| -> Result<_, String> {
                 match body.as_ref() {
-                    Expr::BlockStatement(vec) => {
+                    Expr::Block(vec) => {
                         for i in vec.iter().enumerate() {
                             let result = p.parse(i.1)?;
                             match result {
@@ -546,7 +546,7 @@ impl Program {
             Expr::Expression(expr) => {
                 return self.parse(expr);
             }
-            Expr::BlockStatement(t) => {
+            Expr::Block(t) => {
                 if t.len() > 0 {
                     for i in t {
                         // dbg!(&i);
@@ -625,6 +625,9 @@ impl Program {
                     c.as_ref().clone(),
                 ));
             }
+            // Expr::Switch(a, b)=>{
+
+            // }
             _ => {
                 dbg!(&e);
                 return Err(self.err(&format!("功能暂未完成,{:?}", e)));
