@@ -3,20 +3,15 @@
 ast树参考 [parse.html](https://esprima.org/demo/parse.html)
 
 ```
-# lib.rs 生成 webassembly (注意生成wasm时,有的库会不支持,如要生成请移除不支持的库)
+# lib.rs 生成 webassembly 
 
 # 安装所需工具
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli
 npm i wasm-opt -g
 
-# 编译wasm
-cargo build --target wasm32-unknown-unknown --release --lib
-
-wasm-opt -Oz -o target/wasm32-unknown-unknown/release/jsparser.wasm target/wasm32-unknown-unknown/release/jsparser.wasm #压缩
-
-wasm-bindgen target/wasm32-unknown-unknown/release/jsparser.wasm --out-dir ./pkg --web
-
+# 编译wasm及压缩(最终生成在pkg目录)
+cargo build --target wasm32-unknown-unknown --release --lib && wasm-opt -Oz -o target/wasm32-unknown-unknown/release/jsparser.wasm target/wasm32-unknown-unknown/release/jsparser.wasm && wasm-bindgen target/wasm32-unknown-unknown/release/jsparser.wasm --out-dir ./pkg --web
 ```
 ##### pkg/index.html
 ```html

@@ -625,9 +625,9 @@ impl Program {
                     c.as_ref().clone(),
                 ));
             }
-            // Expr::Switch(a, b)=>{
-
-            // }
+            Expr::Switch(a, b)=>{
+                return Err(self.err(&format!("switch执行功能暂未完成,后续有可能直接移除掉,个人感觉不太需要这个语法==!")));
+            }
             _ => {
                 dbg!(&e);
                 return Err(self.err(&format!("功能暂未完成,{:?}", e)));

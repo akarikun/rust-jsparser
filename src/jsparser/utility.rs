@@ -23,6 +23,12 @@ pub fn err(str: &str) -> String {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn get(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    Err("webassembly暂不支持reqwest请求库".into())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn get(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = reqwest::blocking::Client::new();
     let response = client.get(url).send()?;
@@ -45,7 +51,7 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
 
         //绑定全局变量
         pg_locked.bind_value(String::from("a"), JSType::Int(12));
-        
+
         //注册全局方法
         pg_locked.register_method(
             String::from("log"),
@@ -100,25 +106,31 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
                             .to_lowercase();
                         let success = json.get("success").expect("缺少相关参数:success");
                         if typ == "get".to_string() {
-                            let result = get(&url).unwrap();
-                            std::thread::spawn({
-                                let pg = program.clone();
-                                let success = success.clone();
-                                let result = result.clone();
+                            match get(&url) {
+                                Ok(result) => {
+                                    std::thread::spawn({
+                                        let pg = program.clone();
+                                        let success = success.clone();
+                                        let result = result.clone();
 
-                                //可能会死锁,这里用循环+延迟可解决
-                                move || loop {
-                                    if let Ok(mut pg) = pg.try_lock() {
-                                        _ = pg.execute_func(
-                                            success.clone(),
-                                            vec![JSType::String(result)],
-                                        );
-                                        break;
-                                    } else {
-                                        std::thread::sleep(std::time::Duration::from_millis(200));
-                                    }
+                                        //可能会死锁,这里用循环+延迟可解决
+                                        move || loop {
+                                            if let Ok(mut pg) = pg.try_lock() {
+                                                _ = pg.execute_func(
+                                                    success.clone(),
+                                                    vec![JSType::String(result)],
+                                                );
+                                                break;
+                                            } else {
+                                                std::thread::sleep(
+                                                    std::time::Duration::from_millis(200),
+                                                );
+                                            }
+                                        }
+                                    });
                                 }
-                            });
+                                Err(err) => action.lock().unwrap()(format!("{:?}", err)),
+                            }
                         }
                     }
                     action.lock().unwrap()(format!("ajax注册成功"));
@@ -127,8 +139,7 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
             }),
         );
         pg_locked.run();
-    }
-    else{
+    } else {
         println!("程序异常");
     }
 
