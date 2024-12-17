@@ -32,6 +32,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_str(){
+        _ = run_console(r#" 
+            let a = `1${2+22}3${4}`; 
+            log(a);
+        "#.to_owned());
+    }
+    #[test]
     fn test_switch() {
         _ = run_console(
             r#"       

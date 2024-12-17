@@ -2,6 +2,7 @@ use super::token::{Token, TokenKeyword, TokenPunctuator, TokenType};
 
 pub trait ILexer {
     fn next_token(&mut self) -> Token;
+    fn new(input: String) -> Self;
 }
 
 pub struct Lexer {
@@ -14,6 +15,23 @@ pub struct Lexer {
     column: usize,                   // 当前列号
 }
 impl ILexer for Lexer {
+    fn new(input: String) -> Self
+    {
+        let mut lexer = Lexer {
+            input: input.clone(),
+            chars: "".chars(), // 初始值
+            position: 0,
+            read_position: 0,
+            ch: None,
+            line: 1,   // 初始行号为1
+            column: 0, // 初始列号为0
+        };
+        let input_static: &'static str = Box::leak(input.clone().into_boxed_str());
+        lexer.chars = input_static.chars();
+        lexer.read_char();
+        lexer
+    }
+
     fn next_token(&mut self) -> Token {
         self.skip_whitespace();
         let token = match &self.ch {
@@ -161,7 +179,7 @@ impl ILexer for Lexer {
                     )
                 }
             }
-            Some('%') =>{
+            Some('%') => {
                 let pc = self.peek_char();
                 if pc == Some('/') {
                     // //
@@ -173,16 +191,14 @@ impl ILexer for Lexer {
                         self.read_char();
                     }
                     return self.next_token();
-                }
-                else{
+                } else {
                     Token::new(
                         TokenType::Punctuator(TokenPunctuator::Modulo),
                         self.line,
                         self.column,
                     )
                 }
-               
-            },
+            }
             Some('(') => Token::new(
                 TokenType::Punctuator(TokenPunctuator::LParen),
                 self.line,
@@ -243,62 +259,91 @@ impl ILexer for Lexer {
                 self.line,
                 self.column,
             ),
-            Some('"')|Some('\'') => {
-                let p = self.ch.clone();
+            Some('`') | Some('"') | Some('\'') => {
+                let p = self.ch.clone().unwrap();
+                let is_template = p == '`';
                 self.read_char();
                 let mut result = String::new();
+                let mut v1: Vec<String> = Vec::new();
+                let mut v2: Vec<String> = Vec::new();
                 let line = self.line;
                 while let Some(ch) = self.ch {
-                    if ch == '\n' {
-                        if let Some(last_char) = result.chars().last() {
-                            if last_char == '\\' {
-                                self.read_char();
-                                continue;
+                    if ch == '\\' {
+                        let pc = self.peek_char();
+                        match pc {
+                            Some(t) => {
+                                if t == p {
+                                    self.read_char();
+                                    self.read_char();
+                                    result.push(t);
+                                    continue;
+                                } else if t == '\n' {
+                                    self.read_char();
+                                    self.read_char();
+                                    continue;
+                                } else {
+                                }
                             }
-                        } else {
-                            println!("Unexpected token ILLEGAL");
+                            None => return Token::new(TokenType::SyntaxError, line, self.column),
                         }
                     }
-                    result.push(ch);
-                    self.read_char();
-                    if self.ch == p {
+                    if is_template {
+                        if ch == '$' {
+                            let pc = self.peek_char();
+                            if pc.is_none() {
+                                return Token::new(TokenType::SyntaxError, line, self.column);
+                            }
+                            if pc == Some('{') {
+                                let mut count = 0;
+                                self.read_char(); //$
+                                v1.push(result.clone());
+                                result.clear();
+                                loop {
+                                    if self.ch == Some('{') {
+                                        count += 1;
+                                        self.read_char();
+                                    } else if self.ch == Some('}') {
+                                        count -= 1;
+                                        self.read_char();
+                                        if count == 0 {
+                                            v2.push(result.clone());
+                                            result.clear();
+                                            break;
+                                        }
+                                    } else {
+                                        result.push(self.ch.unwrap());
+                                        self.read_char();
+                                    }
+                                }
+                                continue;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    if self.ch.is_none() {
+                        break;
+                    }
+                    if self.ch.unwrap() == p {
                         self.read_char();
                         break;
                     }
-                }
-                return Token::new(
-                    TokenType::Literal(format!("\"{}\"", result)),
-                    line,
-                    self.column,
-                );
-            }
-            Some('`') => {
-                self.read_char();
-                let mut result = String::new();
-                let line = self.line;
-                while let Some(ch) = self.ch {
-                    if ch == '\n' {
-                        if let Some(last_char) = result.chars().last() {
-                            if last_char == '\\' {
-                                self.read_char();
-                                continue;
-                            }
-                        } else {
-                            println!("Unexpected token ILLEGAL");
-                        }
-                    }
-                    result.push(ch);
+                    result.push(self.ch.unwrap());
                     self.read_char();
-                    if self.ch == Some('"') {
-                        self.read_char();
-                        break;
-                    }
                 }
-                return Token::new(
-                    TokenType::Literal(format!("'{}'", result)),
-                    line,
-                    self.column,
-                );
+                if is_template {
+                    if result.len() > 0 {
+                        v1.push(result.clone());
+                        result.clear();
+                    }
+                    return Token::new(TokenType::Template(v1, v2), line, self.column);
+                } else {
+                    return Token::new(
+                        TokenType::Literal(format!("{}", result)),
+                        line,
+                        self.column,
+                    );
+                }
             }
             Some('&') => {
                 let pc = self.peek_char();
@@ -530,22 +575,6 @@ impl ILexer for Lexer {
     }
 }
 impl Lexer {
-    pub fn new(input: String) -> Self {
-        let mut lexer = Lexer {
-            input: input.clone(),
-            chars: "".chars(), // 初始值
-            position: 0,
-            read_position: 0,
-            ch: None,
-            line: 1,   // 初始行号为1
-            column: 0, // 初始列号为0
-        };
-        let input_static: &'static str = Box::leak(input.clone().into_boxed_str());
-        lexer.chars = input_static.chars();
-        lexer.read_char();
-        lexer
-    }
-
     fn read_char(&mut self) -> bool {
         if let Some(ch) = self.chars.next() {
             self.ch = Some(ch);

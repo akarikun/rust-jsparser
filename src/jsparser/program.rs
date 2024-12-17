@@ -198,7 +198,7 @@ impl Program {
                     expr.as_ref(),
                     Expr::Identifier(_)
                         | Expr::Call(_, _)
-                        | Expr::Literal(_, _)
+                        | Expr::Literal(_)
                         | Expr::Infix(_, _, _)
                 ) {
                     let result = self.parse(&expr)?;
@@ -418,10 +418,10 @@ impl Program {
                 dbg!(&left);
                 dbg!(&value);
             }
-            Expr::Literal(val, raw) => {
-                if raw.starts_with('"') || raw.starts_with('\'') {
-                    return Ok(JSType::String(val.to_string()));
-                }
+            Expr::Literal(val) => {
+                // if raw.starts_with('"') || raw.starts_with('\'') {
+                //     return Ok(JSType::String(val.to_string()));
+                // }
                 let i = val.parse::<i64>();
                 if !i.is_err() {
                     return Ok(JSType::Int(i.unwrap()));
@@ -433,27 +433,6 @@ impl Program {
                 return Ok(JSType::String(val.clone()));
             }
             Expr::Identifier(key) => {
-                // let last_index = self.block_index.clone();
-                // let mut index = (self.local_value.len() as i32) - 1;
-                // loop {
-                //     if let Some(val) = self.local_value.get(index as usize).clone() {
-                //         if let Some(v) = val.get(t) {
-                //             return Ok(v.1.clone());
-                //         }
-                //     }
-                //     if index <= 0 {
-                //         break;
-                //     }
-                //     index -= 1;
-                // }
-                // if let Some(val) = self.global_value_map.get(t) {
-                //     return Ok(val.clone());
-                // }
-                // if cfg!(debug_assertions) {
-                //     dbg!(&last_index);
-                //     dbg!(&self.local_value);
-                // }
-                // return Err(self.err(&format!("Uncaught ReferenceError: {} is not defined", t)));
                 return self.get_value(key);
             }
             Expr::Call(ee, args) => {
@@ -493,19 +472,11 @@ impl Program {
                     }
                 };
             }
-            Expr::Assignment(ident, value) => {
-                let result = self.parse(value.as_ref())?;
-                self.bind_local_arg(Some(Variable::Var), ident.clone(), result);
-            }
-            Expr::Variable2(v) => {
+            Expr::Variable(v) => {
                 for i in v {
                     let result = self.parse(&i.2.clone())?;
-                    self.bind_local_arg(Some(i.0.clone()), i.1.clone(), result);
+                    _ = self.bind_local_arg(Some(i.0.clone()), i.1.clone(), result);
                 }
-            }
-            Expr::Variable(variable, ident, value) => {
-                let result = self.parse(value.as_ref())?;
-                self.bind_local_arg(Some(variable.clone()), ident.clone(), result);
             }
             Expr::For(init, test, update, body) => {
                 self.update_index(true);
@@ -625,8 +596,30 @@ impl Program {
                     c.as_ref().clone(),
                 ));
             }
-            Expr::Switch(a, b)=>{
-                return Err(self.err(&format!("switch执行功能暂未完成,后续有可能直接移除掉,个人感觉不太需要这个语法==!")));
+            Expr::Switch(a, b) => {
+                return Err(self.err(&format!(
+                    "switch执行功能暂未完成,后续有可能直接移除掉,个人感觉不太需要这个语法==!"
+                )));
+            }
+            Expr::Template(vec, vec2) => {
+                let sub = vec.len() - vec2.len();
+                if sub > 1 {
+                    return Err(self.err(&format!("Template异常")));
+                }
+                let mut v2 = Vec::new();
+                for n in vec2 {
+                    let expr = self.parse(n)?;
+                    v2.push(expr.to_string().unwrap());
+                }
+                let mut result = String::new();
+                for n in 0..vec2.len() {
+                    result.push_str(&vec[n].clone());
+                    result.push_str(&v2[n]);
+                }
+                if sub == 1 {
+                    result.push_str(vec.last().unwrap());
+                }
+                return Ok(JSType::String(result));
             }
             _ => {
                 dbg!(&e);

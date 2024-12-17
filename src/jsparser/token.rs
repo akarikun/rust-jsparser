@@ -3,22 +3,38 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Illegal,
+    SyntaxError,
     EOF,
-    Literal(String), // 1  "a"
-    // TemplateLiteral(String),  //``
-    Ident(String), //a
+    Literal(String),                    // 1  "a"
+    Template(Vec<String>, Vec<String>), //``
+    Ident(String),                      //a
     Punctuator(TokenPunctuator),
     Keyword(TokenKeyword),
 }
 impl TokenType {
-    fn to_raw(&self) -> String {
+    pub fn to_raw(&self) -> String {
         match &self {
             TokenType::Illegal => "Illegal".to_string(),
+            TokenType::SyntaxError => "Uncaught SyntaxError: Invalid or unexpected token".to_string(),
             TokenType::EOF => "EOF".to_string(),
             TokenType::Punctuator(t) => t.to_raw(),
             TokenType::Keyword(t) => t.to_raw(),
             TokenType::Literal(t) => t.to_string(),
-            // TokenType::TemplateLiteral(_) => todo!(),
+            TokenType::Template(t, t2) => {
+                let sub = t.len() - t2.len();
+                if sub > 1 {
+                    return super::utility::err("Template is error");
+                }
+                let mut v = String::new();
+                for n in 0..t2.len() {
+                    v.push_str(&t[n].clone());
+                    v.push_str(&format!("${{{}}}", &t2[n]));
+                }
+                if sub == 1 {
+                    v.push_str(&t.last().unwrap());
+                }
+                return v;
+            }
             TokenType::Ident(t) => t.to_string(),
         }
     }
@@ -51,7 +67,7 @@ pub enum TokenPunctuator {
     /// /
     Divide, // /
     /// /=
-    DIV,    
+    DIV,
     /// %
     Modulo, // %
     /// %=
@@ -149,8 +165,8 @@ impl TokenPunctuator {
             TokenPunctuator::LShift => String::from("<<"),
             TokenPunctuator::RShift => String::from(">>"),
             TokenPunctuator::MUL => String::from("*="),
-            TokenPunctuator::DIV =>String::from("/="),
-            TokenPunctuator::MOD =>String::from("%="),
+            TokenPunctuator::DIV => String::from("/="),
+            TokenPunctuator::MOD => String::from("%="),
         }
     }
     pub fn is_precedence(&self) -> bool {
@@ -171,7 +187,11 @@ impl TokenPunctuator {
             TokenPunctuator::BitXor => true,
             TokenPunctuator::BitAnd => true,
 
-            TokenPunctuator::ADD|TokenPunctuator::SUB|TokenPunctuator::MUL|TokenPunctuator::DIV|TokenPunctuator::MOD => true,
+            TokenPunctuator::ADD
+            | TokenPunctuator::SUB
+            | TokenPunctuator::MUL
+            | TokenPunctuator::DIV
+            | TokenPunctuator::MOD => true,
 
             _ => return false,
         }
@@ -390,7 +410,7 @@ impl Token {
     }
     pub fn is_template_literal(&self) -> bool {
         match &self.typ {
-            //TokenType::TemplateLiteral(_) => true,
+            //TokenType::Template(_) => true,
             _ => false,
         }
     }
@@ -399,13 +419,16 @@ impl Token {
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.typ {
-            TokenType::Illegal => panic!("Illegal"),
+            TokenType::Illegal => write!(f, "<illegal:\x1b[31m{}\x1b[39m> ", self.typ.to_raw()),
+            TokenType::SyntaxError => write!(f, "<syntax:\x1b[31m{}\x1b[39m> ", self.typ.to_raw()),
             TokenType::EOF => write!(f, ""),
             TokenType::Ident(t) => write!(f, "<\x1b[31m{}\x1b[39m> ", t),
             TokenType::Punctuator(t) => write!(f, "<\x1b[36m{}\x1b[39m> ", t.to_raw()),
             TokenType::Keyword(t) => write!(f, "<key:\x1b[33m{}\x1b[39m> ", t),
             TokenType::Literal(t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
-            // TokenType::TemplateLiteral(t) => write!(f, "<temp:\x1b[33m{}\x1b[39m> ", t),
+            TokenType::Template(t, t2) => {
+                write!(f, "<temp:\x1b[33m {} \x1b[39m> ", &self.typ.to_raw())
+            }
         }
     }
 }

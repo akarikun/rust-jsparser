@@ -3,7 +3,7 @@ use std::{
     time::Instant,
 };
 
-use crate::jsparser::{lexer::Lexer, parser::Parser, program::JSType};
+use crate::jsparser::{lexer::{Lexer,ILexer}, parser::Parser, program::JSType};
 
 pub fn err(str: &str) -> String {
     if cfg!(debug_assertions) {
@@ -39,10 +39,9 @@ pub fn get(url: &str) -> Result<String, Box<dyn std::error::Error>> {
 pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Result<(), String> {
     let action = Arc::new(Mutex::new(func));
 
-    let mut lexer = Lexer::new(String::from(code));
+    let mut lexer = Lexer::new(code);
     lexer.print(); //打印token
-    let mut parser = Parser::new(Box::new(lexer));
-
+    let mut parser = Parser::new(lexer);
     let program = Arc::new(Mutex::new(parser.parse_program()?));
     let pg = program.clone();
 
@@ -59,6 +58,7 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
                 let action = action.clone();
                 move |args| {
                     // println!("\x1b[33m log => {:?}\x1b[39m", args);
+                    // dbg!(&args);
                     action.lock().unwrap()(format!("\x1b[33m log => {:?}\x1b[39m", args));
                     return Ok(JSType::NULL);
                 }
