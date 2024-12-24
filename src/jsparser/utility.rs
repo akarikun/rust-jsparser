@@ -3,7 +3,11 @@ use std::{
     time::Instant,
 };
 
-use crate::jsparser::{lexer::{Lexer,ILexer}, parser::Parser, program::JSType};
+use crate::jsparser::{
+    lexer::{ILexer, Lexer},
+    parser::Parser,
+    program::JSType,
+};
 
 pub fn err(str: &str) -> String {
     if cfg!(debug_assertions) {
@@ -30,7 +34,9 @@ pub fn get(url: &str) -> Result<String, Box<dyn std::error::Error>> {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn get(url: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::blocking::Client::builder()
+        .danger_accept_invalid_certs(true) // 忽略无效证书
+        .build()?;
     let response = client.get(url).send()?;
     let result = response.text()?;
     Ok(result)
@@ -85,7 +91,7 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
             "ajax".to_string(),
             Box::new({
                 let action = action.clone();
-                // let pg = program.clone();
+                let pg = pg.clone();
                 move |arg| {
                     if arg.len() == 0 {
                         action.lock().unwrap()(format!("ajax注册失败,缺少相关参数"));
@@ -106,15 +112,11 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
                             .to_lowercase();
                         let success = json.get("success").expect("缺少相关参数:success");
                         if typ == "get".to_string() {
-                            match get(&url) {
-                                Ok(result) => {
-                                    std::thread::spawn({
-                                        let pg = program.clone();
-                                        let success = success.clone();
-                                        let result = result.clone();
-
-                                        //可能会死锁,这里用循环+延迟可解决
-                                        move || loop {
+                            //注:wasm不支持多线程,可正常编译但运行会出错
+                            if cfg!(target_arch = "wasm32") {
+                                match get(&url) {
+                                    Ok(result) => {
+                                        loop {
                                             if let Ok(mut pg) = pg.try_lock() {
                                                 _ = pg.execute_func(
                                                     success.clone(),
@@ -127,9 +129,35 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
                                                 );
                                             }
                                         }
-                                    });
+                                    }
+                                    Err(err) => action.lock().unwrap()(format!("{:?}", err)),
                                 }
-                                Err(err) => action.lock().unwrap()(format!("{:?}", err)),
+                            } else {
+                                std::thread::spawn({
+                                    let pg = pg.clone();
+                                    let success = success.clone();
+                                    let action = action.clone();
+                                    move || loop {
+                                        std::thread::sleep(std::time::Duration::from_millis(200));
+                                        match get(&url) {
+                                            Ok(result) => {
+                                                // 当循环多次结果:如果没有输出,执行到一定次数后程序会崩溃 memory allocation of 12288 bytes failed
+                                                // action.lock().unwrap()(format!("{result}"));
+                                                if let Ok(mut pg) = pg.try_lock() {
+                                                    _ = pg.execute_func(
+                                                        success.clone(),
+                                                        vec![JSType::String(result)],
+                                                    );
+                                                    break;
+                                                }
+                                            }
+                                            Err(err) => {
+                                                action.lock().unwrap()(format!("{:?}", err));
+                                                break;
+                                            }
+                                        };
+                                    }
+                                });
                             }
                         }
                     }
@@ -147,11 +175,15 @@ pub fn run_web(code: String, func: Box<dyn Fn(String) + Send + 'static>) -> Resu
 }
 
 pub fn run_console(code: String) -> Result<(), String> {
+    // let count = Arc::new(Mutex::new(0));
     let start = Instant::now();
     _ = run_web(
         code,
-        Box::new(|msg| {
-            println!("{}", msg);
+        Box::new(move |msg| {
+            println!("msg:{}", msg);
+            // let mut i = count.lock().unwrap();
+            // *i += 1;
+            // println!("count:{}", *i);
         }),
     );
     let duration = start.elapsed();

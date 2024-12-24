@@ -4,21 +4,19 @@ use jsparser::utility::run_console;
 fn main() -> Result<(), String> {
     _ = run_console(
         r#"
-        for(let i=0;i<5;i++){
-            if(i>=3){
-                break;
+            for(let i=0;i<10;i++){
+                if(i>=3){ break;}
+                log("第"+(i+1)+"次调用ajax");
+                ajax({
+                    url:'http://ipinfo.io',
+                    type:'get',
+                    success:function(e){
+                        // log("第"+i+"次调用ajax");// log => [String("第4次调用ajax")]
+                        log(e);
+                    }
+                });
             }
-            log("第"+(i+1)+"次调用ajax");
-            ajax({
-                url:'https://ipinfo.io',
-                type:'get',
-                success:function(e){
-                    // log("第"+i+"次调用ajax");// log => [String("第4次调用ajax")]
-                    log(e);
-                }
-            });
-        }
-"#
+    "#
         .to_owned(),
     );
 
@@ -32,11 +30,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_str(){
-        _ = run_console(r#" 
+    fn test_str() {
+        _ = run_console(
+            r#" 
             let a = `1${2+22}3${4}`; 
             log(a);
-        "#.to_owned());
+        "#
+            .to_owned(),
+        );
     }
     #[test]
     fn test_switch() {
@@ -51,7 +52,7 @@ mod tests {
             .to_owned(),
         );
         // _ = run_console(
-        //     r#"       
+        //     r#"
         //     let a =1;
         //     switch(a){
         //         case 2:{}break;

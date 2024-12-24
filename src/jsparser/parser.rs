@@ -455,7 +455,7 @@ impl<T: ILexer> Parser<T> {
                 let mut expr_vec = Vec::new();
                 for n in vec2 {
                     let t = T::new(n.to_string());
-                    let mut parser = Parser::new(t);
+                    let mut parser = Self::new(t);
                     let expr = parser.parse(false)?;
                     expr_vec.push(expr);
                 }
