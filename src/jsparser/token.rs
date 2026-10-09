@@ -5,7 +5,8 @@ pub enum TokenType {
     Illegal,
     SyntaxError,
     EOF,
-    Literal(String),                    // 1  "a"
+    StringLiteral(String),              // 保留字符串与数字的区别
+    Literal(String),                    // 数字原文，例如 1、1.5
     Template(Vec<String>, Vec<String>), //``
     Ident(String),                      //a
     Punctuator(TokenPunctuator),
@@ -15,11 +16,13 @@ impl TokenType {
     pub fn to_raw(&self) -> String {
         match &self {
             TokenType::Illegal => "Illegal".to_string(),
-            TokenType::SyntaxError => "Uncaught SyntaxError: Invalid or unexpected token".to_string(),
+            TokenType::SyntaxError => {
+                "Uncaught SyntaxError: Invalid or unexpected token".to_string()
+            }
             TokenType::EOF => "EOF".to_string(),
             TokenType::Punctuator(t) => t.to_raw(),
             TokenType::Keyword(t) => t.to_raw(),
-            TokenType::Literal(t) => t.to_string(),
+            TokenType::Literal(t) | TokenType::StringLiteral(t) => t.to_string(),
             TokenType::Template(t, t2) => {
                 let sub = t.len() - t2.len();
                 if sub > 1 {
@@ -169,33 +172,6 @@ impl TokenPunctuator {
             TokenPunctuator::MOD => String::from("%="),
         }
     }
-    pub fn is_precedence(&self) -> bool {
-        match &self {
-            TokenPunctuator::Plus | TokenPunctuator::Minus => true,
-            TokenPunctuator::Multiply | TokenPunctuator::Divide => true,
-            TokenPunctuator::Modulo => true,
-            TokenPunctuator::Or => true,
-            TokenPunctuator::And => true,
-            TokenPunctuator::Not => true,
-            TokenPunctuator::LShift | TokenPunctuator::RShift => true,
-            TokenPunctuator::Equal | TokenPunctuator::NE => true,
-            TokenPunctuator::GT
-            | TokenPunctuator::GTE
-            | TokenPunctuator::LT
-            | TokenPunctuator::LTE => true,
-            TokenPunctuator::BitOr => true,
-            TokenPunctuator::BitXor => true,
-            TokenPunctuator::BitAnd => true,
-
-            TokenPunctuator::ADD
-            | TokenPunctuator::SUB
-            | TokenPunctuator::MUL
-            | TokenPunctuator::DIV
-            | TokenPunctuator::MOD => true,
-
-            _ => return false,
-        }
-    }
     pub fn is_unary(&self) -> bool {
         match &self {
             TokenPunctuator::BitNot
@@ -293,66 +269,11 @@ impl Token {
         ))
     }
 
-    pub fn checked_keyword(&self) -> bool {
-        match &self.typ {
-            TokenType::Keyword(t) => {
-                return true;
-            }
-            _ => false,
-        }
-    }
     pub fn is_keyword(&self, key: TokenKeyword) -> bool {
         match &self.typ {
             TokenType::Keyword(t) => {
                 return key == *t;
             }
-            _ => false,
-        }
-    }
-    pub fn is_precedence(&self) -> bool {
-        match &self.typ {
-            TokenType::Punctuator(t) => t.is_precedence(),
-            _ => false,
-        }
-    }
-    pub fn is_complex(&self) -> bool {
-        if self.is_precedence() {
-            return true;
-        }
-        match &self.typ {
-            TokenType::Punctuator(t) => match &t {
-                TokenPunctuator::LCParen
-                | TokenPunctuator::LParen
-                | TokenPunctuator::LSParen
-                | TokenPunctuator::Dot => true,
-                _ => false,
-            },
-            _ => false,
-        }
-    }
-    pub fn is_binary(&self) -> bool {
-        match &self.typ {
-            TokenType::Punctuator(t) => match &t {
-                TokenPunctuator::Equal
-                | TokenPunctuator::Congruent
-                | TokenPunctuator::GT
-                | TokenPunctuator::GTE
-                | TokenPunctuator::LT
-                | TokenPunctuator::LTE
-                | TokenPunctuator::NE
-                | TokenPunctuator::LShift
-                | TokenPunctuator::RShift => true,
-                _ => false,
-            },
-            _ => false,
-        }
-    }
-    pub fn is_logical(&self) -> bool {
-        match &self.typ {
-            TokenType::Punctuator(t) => match &t {
-                TokenPunctuator::And | TokenPunctuator::Or => true,
-                _ => false,
-            },
             _ => false,
         }
     }
@@ -397,20 +318,7 @@ impl Token {
     }
     pub fn is_literal(&self) -> bool {
         match &self.typ {
-            TokenType::Literal(_) => true,
-            _ => false,
-        }
-    }
-    /// 这个表达式只能做+运算
-    pub fn is_ident_num_is_literal_template(&self) -> bool {
-        self.is_ident() || self.is_literal() || self.is_literal() || self.is_template_literal()
-    }
-    pub fn is_ident_num(&self) -> bool {
-        self.is_ident() || self.is_literal() || self.is_literal()
-    }
-    pub fn is_template_literal(&self) -> bool {
-        match &self.typ {
-            //TokenType::Template(_) => true,
+            TokenType::Literal(_) | TokenType::StringLiteral(_) => true,
             _ => false,
         }
     }
@@ -425,7 +333,9 @@ impl std::fmt::Display for Token {
             TokenType::Ident(t) => write!(f, "<\x1b[31m{}\x1b[39m> ", t),
             TokenType::Punctuator(t) => write!(f, "<\x1b[36m{}\x1b[39m> ", t.to_raw()),
             TokenType::Keyword(t) => write!(f, "<key:\x1b[33m{}\x1b[39m> ", t),
-            TokenType::Literal(t) => write!(f, "<\x1b[35m{}\x1b[39m> ", t),
+            TokenType::Literal(t) | TokenType::StringLiteral(t) => {
+                write!(f, "<\x1b[35m{}\x1b[39m> ", t)
+            }
             TokenType::Template(t, t2) => {
                 write!(f, "<temp:\x1b[33m {} \x1b[39m> ", &self.typ.to_raw())
             }

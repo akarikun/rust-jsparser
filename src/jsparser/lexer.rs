@@ -7,7 +7,7 @@ pub trait ILexer {
 
 pub struct Lexer {
     input: String,
-    chars: std::str::Chars<'static>, // 字符迭代器
+    chars: std::vec::IntoIter<char>, // 拥有字符，Lexer 释放时一起释放
     position: usize,                 // 当前字符位置
     read_position: usize,            // 下一个字符的位置
     ch: Option<char>,                // 当前字符
@@ -15,25 +15,24 @@ pub struct Lexer {
     column: usize,                   // 当前列号
 }
 impl ILexer for Lexer {
-    fn new(input: String) -> Self
-    {
+    fn new(input: String) -> Self {
         let mut lexer = Lexer {
-            input: input.clone(),
-            chars: "".chars(), // 初始值
+            chars: input.chars().collect::<Vec<_>>().into_iter(),
+            input,
             position: 0,
             read_position: 0,
             ch: None,
             line: 1,   // 初始行号为1
             column: 0, // 初始列号为0
         };
-        let input_static: &'static str = Box::leak(input.clone().into_boxed_str());
-        lexer.chars = input_static.chars();
         lexer.read_char();
         lexer
     }
 
     fn next_token(&mut self) -> Token {
-        self.skip_whitespace();
+        if !self.skip_trivia() {
+            return Token::new(TokenType::SyntaxError, self.line, self.column);
+        }
         let token = match &self.ch {
             Some('=') => {
                 let pc = self.peek_char();
@@ -137,41 +136,14 @@ impl ILexer for Lexer {
                 }
             }
             Some('/') => {
-                //注释或者是除号
-                let pc = self.peek_char();
-                if pc == Some('/') {
-                    // //
-                    while let Some(ch) = self.ch {
-                        if ch == '\n' {
-                            self.read_char();
-                            break;
-                        }
-                        self.read_char();
-                    }
-                    return self.next_token();
-                } else if pc == Some('=') {
+                if self.peek_char() == Some('=') {
                     self.read_char();
                     Token::new(
                         TokenType::Punctuator(TokenPunctuator::DIV),
                         self.line,
                         self.column,
                     )
-                } else if pc == Some('*') {
-                    // /*
-                    self.read_char();
-                    self.read_char();
-                    while let Some(ch) = self.ch {
-                        let pc = self.peek_char();
-                        if ch == '*' && pc == Some('/') {
-                            self.read_char();
-                            self.read_char();
-                            break;
-                        }
-                        self.read_char();
-                    }
-                    return self.next_token();
                 } else {
-                    //除号
                     Token::new(
                         TokenType::Punctuator(TokenPunctuator::Divide),
                         self.line,
@@ -180,17 +152,13 @@ impl ILexer for Lexer {
                 }
             }
             Some('%') => {
-                let pc = self.peek_char();
-                if pc == Some('/') {
-                    // //
-                    while let Some(ch) = self.ch {
-                        if ch == '\n' {
-                            self.read_char();
-                            break;
-                        }
-                        self.read_char();
-                    }
-                    return self.next_token();
+                if self.peek_char() == Some('=') {
+                    self.read_char();
+                    Token::new(
+                        TokenType::Punctuator(TokenPunctuator::MOD),
+                        self.line,
+                        self.column,
+                    )
                 } else {
                     Token::new(
                         TokenType::Punctuator(TokenPunctuator::Modulo),
@@ -260,19 +228,23 @@ impl ILexer for Lexer {
                 self.column,
             ),
             Some('`') | Some('"') | Some('\'') => {
-                let p = self.ch.clone().unwrap();
+                let p = self.ch.unwrap();
                 let is_template = p == '`';
                 self.read_char();
                 let mut result = String::new();
                 let mut v1: Vec<String> = Vec::new();
                 let mut v2: Vec<String> = Vec::new();
                 let line = self.line;
+                let mut closed = false;
                 while let Some(ch) = self.ch {
+                    if !is_template && (ch == '\n' || ch == '\r') {
+                        return Token::new(TokenType::SyntaxError, line, self.column);
+                    }
                     if ch == '\\' {
                         let pc = self.peek_char();
                         match pc {
                             Some(t) => {
-                                if t == p {
+                                if t == p || t == '\\' {
                                     self.read_char();
                                     self.read_char();
                                     result.push(t);
@@ -299,6 +271,13 @@ impl ILexer for Lexer {
                                 v1.push(result.clone());
                                 result.clear();
                                 loop {
+                                    if self.ch.is_none() {
+                                        return Token::new(
+                                            TokenType::SyntaxError,
+                                            line,
+                                            self.column,
+                                        );
+                                    }
                                     if self.ch == Some('{') {
                                         count += 1;
                                         self.read_char();
@@ -316,8 +295,6 @@ impl ILexer for Lexer {
                                     }
                                 }
                                 continue;
-                            } else {
-                                break;
                             }
                         }
                     }
@@ -326,23 +303,20 @@ impl ILexer for Lexer {
                     }
                     if self.ch.unwrap() == p {
                         self.read_char();
+                        closed = true;
                         break;
                     }
                     result.push(self.ch.unwrap());
                     self.read_char();
                 }
+                if !closed {
+                    return Token::new(TokenType::SyntaxError, line, self.column);
+                }
                 if is_template {
-                    if result.len() > 0 {
-                        v1.push(result.clone());
-                        result.clear();
-                    }
+                    v1.push(result);
                     return Token::new(TokenType::Template(v1, v2), line, self.column);
                 } else {
-                    return Token::new(
-                        TokenType::Literal(format!("{}", result)),
-                        line,
-                        self.column,
-                    );
+                    return Token::new(TokenType::StringLiteral(result), line, self.column);
                 }
             }
             Some('&') => {
@@ -595,15 +569,40 @@ impl Lexer {
     }
 
     fn peek_char(&mut self) -> Option<char> {
-        self.chars.clone().next()
+        self.chars.as_slice().first().copied()
     }
 
-    fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.ch {
-            if ch.is_whitespace() {
+    // 注释是可重复的词法间隔；用循环跳过，不递归调用 next_token。
+    fn skip_trivia(&mut self) -> bool {
+        loop {
+            while self.ch.is_some_and(char::is_whitespace) {
                 self.read_char();
-            } else {
-                break;
+            }
+            if self.ch != Some('/') {
+                return true;
+            }
+            match self.peek_char() {
+                Some('/') => {
+                    while self.ch.is_some_and(|ch| ch != '\n') {
+                        self.read_char();
+                    }
+                }
+                Some('*') => {
+                    self.read_char();
+                    self.read_char();
+                    loop {
+                        if self.ch.is_none() {
+                            return false;
+                        }
+                        if self.ch == Some('*') && self.peek_char() == Some('/') {
+                            self.read_char();
+                            self.read_char();
+                            break;
+                        }
+                        self.read_char();
+                    }
+                }
+                _ => return true,
             }
         }
     }
@@ -652,5 +651,42 @@ impl Lexer {
             print!("{}", tok);
         }
         println!("\n/*-------- end --------*/");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn many_comments_do_not_recurse_and_compound_modulo_is_one_token() {
+        let mut lexer = Lexer::new(format!("{}a%=2;", "/* comment */\n".repeat(10_000)));
+        assert_eq!(lexer.next_token().typ, TokenType::Ident("a".into()));
+        assert_eq!(
+            lexer.next_token().typ,
+            TokenType::Punctuator(TokenPunctuator::MOD)
+        );
+        assert_eq!(lexer.next_token().typ, TokenType::Literal("2".into()));
+    }
+
+    #[test]
+    fn unterminated_strings_comments_and_templates_are_errors() {
+        for source in ["'abc", "\"abc", "/* abc", "`abc", "`a${1", "`a${{x:1}"] {
+            assert_eq!(
+                Lexer::new(source.into()).next_token().typ,
+                TokenType::SyntaxError,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn template_parts_include_the_empty_tail_and_plain_dollars() {
+        let token = Lexer::new("`cost $5 ${1}`".into()).next_token();
+        assert_eq!(
+            token.typ,
+            TokenType::Template(vec!["cost $5 ".into(), "".into()], vec!["1".into()])
+        );
+        assert_eq!(token.raw, "cost $5 ${1}");
     }
 }

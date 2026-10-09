@@ -31,42 +31,33 @@ mod tests {
 
     #[test]
     fn test_str() {
-        _ = run_console(
+        run_console(
             r#" 
             let a = `1${2+22}3${4}`; 
             log(a);
         "#
             .to_owned(),
-        );
+        )
+        .unwrap();
     }
     #[test]
     fn test_switch() {
-        _ = run_console(
-            r#"       
-            let a =1;
-            switch(a){
-                case 1:
-                default:break;
-            }
-    "#
-            .to_owned(),
-        );
-        // _ = run_console(
-        //     r#"
-        //     let a =1;
-        //     switch(a){
-        //         case 2:{}break;
-        //         default:
-        //     }
-        //     let d= 1;
-        // "#
-        //     .to_owned(),
-        // );
+        use jsparser::{
+            lexer::{ILexer, Lexer},
+            parser::Parser,
+        };
+        // switch 的 AST 已支持；解释执行仍未实现，单独验证解析。
+        Parser::new(Lexer::new(
+            "let a=1; switch(a){case 1:default:break;}".into(),
+        ))
+        .parse_program()
+        .unwrap();
     }
 
     #[test]
+    #[ignore = "requires an external HTTP service"]
     fn test_ajax() {
-        _ = run_console(
+        run_console(
             r#"       
             for(let i=0;i<5;i++){
                 if(i>=3){
@@ -84,17 +75,18 @@ mod tests {
             }
     "#
             .to_owned(),
-        );
+        )
+        .unwrap();
     }
 
     #[test]
     fn test_log() {
-        _ = run_console("log(1);".to_owned());
+        run_console("log(1);".to_owned()).unwrap();
     }
 
     #[test]
     fn test_fn1() {
-        let _ = run_console(
+        run_console(
             r#"
     function foo(a){
         for(let i=0;i<a;i++)
@@ -105,11 +97,12 @@ mod tests {
     //log(i);                      //Uncaught ReferenceError: i is not defined
 "#
             .to_owned(),
-        );
+        )
+        .unwrap();
     }
     #[test]
     fn test_fn2() {
-        let _ = run_console(
+        run_console(
             r#"
             let i = 0;
             function foo(){
@@ -124,20 +117,22 @@ mod tests {
             foo();
         "#
             .to_owned(),
-        );
+        )
+        .unwrap();
     }
     #[test]
     fn test_for() {
-        let _ = run_console(
+        run_console(
             r#"
             for(let i = 0;i<10;i++){
                 log(i);
             }
         "#
             .to_owned(),
-        );
+        )
+        .unwrap();
 
-        let _ = run_console(
+        run_console(
             r#"
                 let i = 0;
                 for(;;){
@@ -151,12 +146,13 @@ mod tests {
                 }
             "#
             .to_owned(),
-        );
+        )
+        .unwrap();
 
-        let _ = run_console(
+        run_console(
             r#"
             let i = 0;
-            for(;;i++;){
+            for(;;i++){
                 if(i<10)
                     log(i);
                 else
@@ -164,29 +160,32 @@ mod tests {
             }
         "#
             .to_string(),
-        );
+        )
+        .unwrap();
     }
 
     #[test]
     fn test_json() {
-        _ = run_console(
+        run_console(
             r#" 
         let b = 2;
         let json = {'a':1,b,c:3};// {[a+1]:5} 暂未实现该表达式
         log(json);
         "#
             .to_owned(),
-        );
+        )
+        .unwrap();
     }
     #[test]
     fn test_array() {
-        _ = run_console(
+        run_console(
             r#"
         let a = 123; 
         let arr = [1,2,3,a];
         log(arr);
         "#
             .to_owned(),
-        );
+        )
+        .unwrap();
     }
 }

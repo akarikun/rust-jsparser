@@ -8,6 +8,7 @@ pub enum Expr {
     Identifier(String),
     Template(Vec<String>, Vec<Expr>), //``模板
     Literal(String),
+    StringLiteral(String),
     Call(Box<Expr>, Vec<Expr>),            // a()  a.b()
     Member(Box<Expr>, Box<Expr>),          //a.b a[b]
     Sequence(Vec<Expr>),                   // a[1,2,3,4]
@@ -38,7 +39,7 @@ impl Expr {
     pub fn to_raw(&self) -> String {
         match self {
             Expr::Identifier(t) => t.to_string(),
-            Expr::Literal(t) => t.to_string(),
+            Expr::Literal(t) | Expr::StringLiteral(t) => t.to_string(),
             _ => format!("<{:?}>", self),
         }
     }

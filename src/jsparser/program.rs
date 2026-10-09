@@ -128,7 +128,13 @@ impl Program {
         for (index, e) in args.iter().enumerate() {
             match e {
                 Expr::Identifier(t) => {
-                    list.insert(t.clone(), (typ.clone(), values[index].clone()));
+                    list.insert(
+                        t.clone(),
+                        (
+                            typ.clone(),
+                            values.get(index).cloned().unwrap_or(JSType::Undefined),
+                        ),
+                    );
                 }
                 _ => {
                     panic!("")
@@ -140,17 +146,12 @@ impl Program {
     }
 
     pub fn execute_func(&mut self, func: JSType, result: Vec<JSType>) -> Result<JSType, String> {
-        if let JSType::Function(a, b, c) = func {
-            let len = result.len() > 0;
-            if len {
-                self.update_index(true);
-                self.bind_local_args(Variable::Var, &b, result);
-            }
-            let result = self.parse(&c).unwrap();
-            if len {
-                self.update_index(false);
-            }
-            return Ok(result);
+        if let JSType::Function(_, args, body) = func {
+            self.update_index(true);
+            self.bind_local_args(Variable::Var, &args, result);
+            let result = self.parse(&body);
+            self.update_index(false);
+            return result;
         }
         Err(self.err(&format!("{func:?} is not function")))
     }
@@ -199,6 +200,7 @@ impl Program {
                     Expr::Identifier(_)
                         | Expr::Call(_, _)
                         | Expr::Literal(_)
+                        | Expr::StringLiteral(_)
                         | Expr::Infix(_, _, _)
                 ) {
                     let result = self.parse(&expr)?;
@@ -418,6 +420,7 @@ impl Program {
                 dbg!(&left);
                 dbg!(&value);
             }
+            Expr::StringLiteral(value) => return Ok(JSType::String(value.clone())),
             Expr::Literal(val) => {
                 // if raw.starts_with('"') || raw.starts_with('\'') {
                 //     return Ok(JSType::String(val.to_string()));
